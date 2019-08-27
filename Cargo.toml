@@ -14,4 +14,3 @@ crate-type = ["dylib"]
 
 [dependencies]
 hrx = "0.1"
-
