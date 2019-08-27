@@ -123,100 +123,100 @@ pub const PK_CRYPTOPT_MASTERPASS_SET: c_int = 1;
 
 #[repr(C)]
 pub struct tHeaderData {
-    ArcName: [c_char; 260],
-    FileName: [c_char; 260],
-    Flags: c_int,
-    PackSize: c_int,
-    UnpSize: c_int,
-    HostOS: c_int,
-    FileCRC: c_int,
-    FileTime: c_int,
-    UnpVer: c_int,
-    Method: c_int,
-    FileAttr: c_int,
-    CmtBuf: *mut c_char,
-    CmtBufSize: c_int,
-    CmtSize: c_int,
-    CmtState: c_int,
+    pub ArcName: [c_char; 260],
+    pub FileName: [c_char; 260],
+    pub Flags: c_int,
+    pub PackSize: c_int,
+    pub UnpSize: c_int,
+    pub HostOS: c_int,
+    pub FileCRC: c_int,
+    pub FileTime: c_int,
+    pub UnpVer: c_int,
+    pub Method: c_int,
+    pub FileAttr: c_int,
+    pub CmtBuf: *mut c_char,
+    pub CmtBufSize: c_int,
+    pub CmtSize: c_int,
+    pub CmtState: c_int,
 }
 
 #[repr(C)]
 pub struct tHeaderDataEx {
-    ArcName: [c_char; 1024],
-    FileName: [c_char; 1024],
-    Flags: c_int,
-    PackSize: c_uint,
-    PackSizeHigh: c_uint,
-    UnpSize: c_uint,
-    UnpSizeHigh: c_uint,
-    HostOS: c_int,
-    FileCRC: c_int,
-    FileTime: c_int,
-    UnpVer: c_int,
-    Method: c_int,
-    FileAttr: c_int,
-    CmtBuf: *mut c_char,
-    CmtBufSize: c_int,
-    CmtSize: c_int,
-    CmtState: c_int,
-    Reserved: [c_char; 1024],
+    pub ArcName: [c_char; 1024],
+    pub FileName: [c_char; 1024],
+    pub Flags: c_int,
+    pub PackSize: c_uint,
+    pub PackSizeHigh: c_uint,
+    pub UnpSize: c_uint,
+    pub UnpSizeHigh: c_uint,
+    pub HostOS: c_int,
+    pub FileCRC: c_int,
+    pub FileTime: c_int,
+    pub UnpVer: c_int,
+    pub Method: c_int,
+    pub FileAttr: c_int,
+    pub CmtBuf: *mut c_char,
+    pub CmtBufSize: c_int,
+    pub CmtSize: c_int,
+    pub CmtState: c_int,
+    pub Reserved: [c_char; 1024],
 }
 
 #[repr(C)]
 pub struct tHeaderDataExW {
-    ArcName: [WCHAR; 1024],
-    FileName: [WCHAR; 1024],
-    Flags: c_int,
-    PackSize: c_uint,
-    PackSizeHigh: c_uint,
-    UnpSize: c_uint,
-    UnpSizeHigh: c_uint,
-    HostOS: c_int,
-    FileCRC: c_int,
-    FileTime: c_int,
-    UnpVer: c_int,
-    Method: c_int,
-    FileAttr: c_int,
-    CmtBuf: *mut c_char,
-    CmtBufSize: c_int,
-    CmtSize: c_int,
-    CmtState: c_int,
-    Reserved: [c_char; 1024],
+    pub ArcName: [WCHAR; 1024],
+    pub FileName: [WCHAR; 1024],
+    pub Flags: c_int,
+    pub PackSize: c_uint,
+    pub PackSizeHigh: c_uint,
+    pub UnpSize: c_uint,
+    pub UnpSizeHigh: c_uint,
+    pub HostOS: c_int,
+    pub FileCRC: c_int,
+    pub FileTime: c_int,
+    pub UnpVer: c_int,
+    pub Method: c_int,
+    pub FileAttr: c_int,
+    pub CmtBuf: *mut c_char,
+    pub CmtBufSize: c_int,
+    pub CmtSize: c_int,
+    pub CmtState: c_int,
+    pub Reserved: [c_char; 1024],
 }
 
 #[repr(C)]
 pub struct tOpenArchiveData {
-    ArcName: *mut c_char,
-    OpenMode: c_int,
-    OpenResult: c_int,
-    CmtBuf: *mut c_char,
-    CmtBufSize: c_int,
-    CmtSize: c_int,
-    CmtState: c_int,
+    pub ArcName: *mut c_char,
+    pub OpenMode: c_int,
+    pub OpenResult: c_int,
+    pub CmtBuf: *mut c_char,
+    pub CmtBufSize: c_int,
+    pub CmtSize: c_int,
+    pub CmtState: c_int,
 }
 
 #[repr(C)]
 pub struct tOpenArchiveDataW {
-    ArcName: *mut WCHAR,
-    OpenMode: c_int,
-    OpenResult: c_int,
-    CmtBuf: *mut WCHAR,
-    CmtBufSize: c_int,
-    CmtSize: c_int,
-    CmtState: c_int,
+    pub ArcName: *mut WCHAR,
+    pub OpenMode: c_int,
+    pub OpenResult: c_int,
+    pub CmtBuf: *mut WCHAR,
+    pub CmtBufSize: c_int,
+    pub CmtSize: c_int,
+    pub CmtState: c_int,
 }
 
 #[repr(C)]
 pub struct PackDefaultParamStruct {
-    size: c_int,
-    PluginInterfaceVersionLow: DWORD,
-    PluginInterfaceVersionHi: DWORD,
-    DefaultIniName: [c_char; MAX_PATH],
+    pub size: c_int,
+    pub PluginInterfaceVersionLow: DWORD,
+    pub PluginInterfaceVersionHi: DWORD,
+    pub DefaultIniName: [c_char; MAX_PATH],
 }
 
-/* Definition of callback functions called by the DLL
+/* Definition of callback functions called by the DLL */
 
-Ask to swap disk for multi-volume archive */
+/// Ask to swap disk for multi-volume archive
 pub type tChangeVolProc = extern "stdcall" fn(ArcName: *mut char, Mode: c_int) -> c_int;
 pub type tChangeVolProcW = extern "stdcall" fn(ArcName: *mut WCHAR, Mode: c_int) -> c_int;
 

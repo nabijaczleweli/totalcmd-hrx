@@ -5,26 +5,49 @@ extern crate winapi;
 extern crate libc;
 extern crate hrx;
 
+mod state;
+
 pub mod wcxhead;
 
-use wcxhead::{PackDefaultParamStruct, tOpenArchiveDataW, tOpenArchiveData, tProcessDataProcW, tProcessDataProc, tChangeVolProcW, tChangeVolProc, tHeaderDataExW,
-              tHeaderDataEx, tPkCryptProcW, tPkCryptProc, tHeaderData};
-use winapi::shared::minwindef::{HINSTANCE, FALSE, BOOL};
-use winapi::shared::ntdef::HANDLE;
-use winapi::shared::ntdef::WCHAR;
-use winapi::shared::windef::HWND;
-use libc::{c_char, c_int};
-use std::ptr;
+use wcxhead::{tOpenArchiveDataW, tOpenArchiveData, tProcessDataProcW, tProcessDataProc, tChangeVolProcW, tChangeVolProc, tHeaderDataExW, tHeaderDataEx,
+              tHeaderData, BACKGROUND_UNPACK, BACKGROUND_PACK};
+use winapi::shared::minwindef::{FALSE, BOOL};
+use winapi::shared::ntdef::{HANDLE, WCHAR};
+use std::os::windows::ffi::OsStringExt;
+use libc::{c_char, c_int, wcslen};
+use std::ffi::{OsString, CStr};
+use std::{slice, ptr};
+use std::path::Path;
+
+pub use state::ArchiveState;
 
 
-/// OpenArchive should perform all necessary operations
-/// when an archive is to be opened
-pub extern "stdcall" fn OpenArchive(ArchiveData: *mut tOpenArchiveData) -> HANDLE {
-    ptr::null_mut()
+/// OpenArchive should perform all necessary operations when an archive is to be opened
+pub unsafe extern "stdcall" fn OpenArchive(ArchiveData: *mut tOpenArchiveData) -> HANDLE {
+    let ArchiveData = &mut *ArchiveData;
+
+    OpenArchiveImpl(&CStr::from_ptr(ArchiveData.ArcName).to_string_lossy()[..], &mut ArchiveData.OpenResult)
 }
 
-pub extern "stdcall" fn OpenArchiveW(ArchiveData: *mut tOpenArchiveDataW) -> HANDLE {
-    ptr::null_mut()
+pub unsafe extern "stdcall" fn OpenArchiveW(ArchiveData: *mut tOpenArchiveDataW) -> HANDLE {
+    let ArchiveData = &mut *ArchiveData;
+
+    OpenArchiveImpl(OsString::from_wide(slice::from_raw_parts(ArchiveData.ArcName, wcslen(ArchiveData.ArcName))),
+                    &mut ArchiveData.OpenResult)
+}
+
+fn OpenArchiveImpl<P: AsRef<Path>>(path: P, OpenResult: &mut c_int) -> HANDLE {
+    OpenArchiveImpl_impl(path.as_ref(), OpenResult)
+}
+
+fn OpenArchiveImpl_impl(path: &Path, OpenResult: &mut c_int) -> HANDLE {
+    match ArchiveState::open(path) {
+        Ok(arch) => Box::into_raw(Box::new(arch)) as HANDLE,
+        Err(err) => {
+            *OpenResult = err;
+            ptr::null_mut()
+        }
+    }
 }
 
 /// WinCmd calls ReadHeader to find out what files are in the archive
@@ -50,22 +73,22 @@ pub extern "stdcall" fn ProcessFileW(hArcData: HANDLE, Operation: c_int, DestPat
     0
 }
 
-/// CloseArchive should perform all necessary operations
-/// when an archive is about to be closed.
-pub extern "stdcall" fn CloseArchive(hArcData: HANDLE) -> c_int {
+/// CloseArchive should perform all necessary operations when an archive is about to be closed.
+pub unsafe extern "stdcall" fn CloseArchive(hArcData: HANDLE) -> c_int {
+    Box::from_raw(hArcData as *mut ArchiveState);
+
     0
 }
 
-
-/// This function allows you to notify user
-/// about changing a volume when packing files
-pub extern "stdcall" fn SetChangeVolProc(hArcData: HANDLE, pChangeVolProc1: tChangeVolProc) {}
-pub extern "stdcall" fn SetChangeVolProcW(hArcData: HANDLE, pChangeVolProc1: tChangeVolProcW) {}
+/// HRX archives are single-volume, safe to ignore
+pub extern "stdcall" fn SetChangeVolProc(_: HANDLE, _: tChangeVolProc) {}
+pub extern "stdcall" fn SetChangeVolProcW(_: HANDLE, _: tChangeVolProcW) {}
 
 /// This function allows you to notify user about
 /// the progress when you un/pack files
 pub extern "stdcall" fn SetProcessDataProc(hArcData: HANDLE, pProcessDataProc: tProcessDataProc) {}
 pub extern "stdcall" fn SetProcessDataProcW(hArcData: HANDLE, pProcessDataProc: tProcessDataProcW) {}
+
 
 /// PackFiles specifies what should happen when a user creates,
 /// or adds files to the archive.
@@ -76,32 +99,15 @@ pub extern "stdcall" fn PackFilesW(PackedFile: *mut WCHAR, SubPath: *mut WCHAR, 
     0
 }
 
-pub extern "stdcall" fn DeleteFiles(PackedFile: *mut c_char, DeleteList: *mut c_char) -> c_int {}
-pub extern "stdcall" fn DeleteFilesW(PackedFile: *mut WCHAR, DeleteList: *mut WCHAR) -> c_int {}
+pub extern "stdcall" fn DeleteFiles(PackedFile: *mut c_char, DeleteList: *mut c_char) -> c_int {
+    0
+}
+pub extern "stdcall" fn DeleteFilesW(PackedFile: *mut WCHAR, DeleteList: *mut WCHAR) -> c_int {
+    0
+}
 
 /// GetPackerCaps tells WinCmd what features your packer plugin supports
 pub extern "stdcall" fn GetPackerCaps() -> c_int {
-    0
-}
-
-/// ConfigurePacker gets called when the user clicks the Configure button
-/// from within "Pack files..." dialog box in WinCmd
-pub extern "stdcall" fn ConfigurePacker(Parent: HWND, DllInstance: HINSTANCE) {}
-
-pub extern "stdcall" fn StartMemPack(Options: c_int, FileName: *mut c_char) -> HANDLE {
-    ptr::null_mut()
-}
-pub extern "stdcall" fn StartMemPackW(Options: c_int, FileName: *mut WCHAR) -> HANDLE {
-    ptr::null_mut()
-}
-
-pub extern "stdcall" fn PackToMem(hMemPack: HANDLE, BufIn: *mut c_char, InLen: c_int, Taken: *mut c_int, BufOut: *mut c_char, OutLen: c_int,
-                                  Written: *mut c_int, SeekBy: c_int)
-                                  -> c_int {
-    0
-}
-
-pub extern "stdcall" fn DoneMemPack(hMemPack: HANDLE) -> c_int {
     0
 }
 
@@ -112,11 +118,6 @@ pub extern "stdcall" fn CanYouHandleThisFileW(FileName: *mut WCHAR) -> BOOL {
     FALSE
 }
 
-pub extern "stdcall" fn PackSetDefaultParams(dps: *mut PackDefaultParamStruct) {}
-
-pub extern "stdcall" fn PkSetCryptCallback(pPkCryptProc: tPkCryptProc, CryptoNr: c_int, Flags: c_int) {}
-pub extern "stdcall" fn PkSetCryptCallbackW(pPkCryptProc: tPkCryptProcW, CryptoNr: c_int, Flags: c_int) {}
-
 pub extern "stdcall" fn GetBackgroundFlags() -> c_int {
-    0
+    BACKGROUND_UNPACK | BACKGROUND_PACK
 }
