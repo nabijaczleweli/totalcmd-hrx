@@ -1,0 +1,6 @@
+[plugininstall]
+description=hrx plugin #VERSION# #BITNESS#bit
+type=wcx
+file=totalcmd-hrx.#WCX#
+defaultdir=totalcmd-hrx
+defaultextension=hrx

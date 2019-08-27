@@ -1,0 +1,17 @@
+[package]
+name = "totalcmd-hrx"
+description = "Total Commander HRX packer plugin"
+repository = "https://github.com/nabijaczleweli/totalcmd-hrx"
+readme = "README.md"
+license = "MIT"
+# Remember to also update in appveyor.yml
+version = "0.1.0"
+authors = ["nabijaczleweli <nabijaczleweli@gmail.com>"]
+
+[lib]
+crate-type = ["dylib"]
+
+
+[dependencies]
+hrx = "0.1"
+
