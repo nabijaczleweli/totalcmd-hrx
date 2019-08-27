@@ -8,10 +8,14 @@ license = "MIT"
 version = "0.1.0"
 authors = ["nabijaczleweli <nabijaczleweli@gmail.com>"]
 
+[lib]
+crate-type = ["dylib"]
+
 
 [dependencies]
 hrx = "0.1"
 libc = "0.2"
+linked-hash-map = "0.5"
 
 [target.'cfg(windows)'.dependencies.winapi]
 version = "0.3"

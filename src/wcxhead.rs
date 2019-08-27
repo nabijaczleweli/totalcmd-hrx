@@ -121,6 +121,64 @@ pub const PK_CRYPT_DELETE_PASSWORD: c_int = 6;
 /// The user already has a master password defined
 pub const PK_CRYPTOPT_MASTERPASS_SET: c_int = 1;
 
+/// tHeaderData is a structure used in `ReadHeader`.
+///
+/// ```c
+/// typedef struct {
+///
+///     char ArcName[260];
+///     char FileName[260];
+///     int Flags;
+///     int PackSize;
+///     int UnpSize;
+///     int HostOS;
+///     int FileCRC;
+///     int FileTime;
+///     int UnpVer;
+///     int Method;
+///     int FileAttr;
+///     char* CmtBuf;
+///     int CmtBufSize;
+///     int CmtSize;
+///     int CmtState;
+///   } tHeaderData;
+/// ```
+///
+/// # Description
+///
+/// `ArcName`, `FileName`, `PackSize`, `UnpSize` contain the name of the archive, the name of the file within the archive, size
+/// of the file when packed, and the size of the file when extracted, respectively.
+///
+/// `HostOS` is there for compatibility with unrar.dll only, and should be set to zero.
+///
+/// `FileCRC` is the 32-bit CRC (cyclic redundancy check) checksum of the file. If not available, set to zero.
+///
+/// The `Cmt*` values can be used to transfer file comment information. They are currently not used in Total Commander, so they
+/// may be set to zero.
+///
+/// `FileAttr` can be set to any combination of the following values:
+///
+/// | Value | Description    |
+/// | ----- | -----------    |
+/// | 0x1   | Read-only file |
+/// | 0x2   | Hidden file    |
+/// | 0x4   | System file    |
+/// | 0x8   | Volume ID file |
+/// | 0x10  | Directory      |
+/// | 0x20  | Archive file   |
+/// | 0x3F  | Any file       |
+///
+/// `FileTime` contains the date and the time of the file’s last update. Use the following algorithm to set the value:
+///
+/// FileTime = (year - 1980) << 25 | month << 21 | day << 16 | hour << 11 | minute << 5 | second/2;
+///
+/// Make sure that:
+///
+/// `year` is in the four digit format between 1980 and 2100
+///
+/// `month` is a number between 1 and 12
+///
+/// `hour` is in the 24 hour format
 #[repr(C)]
 pub struct tHeaderData {
     pub ArcName: [c_char; 260],
@@ -140,6 +198,76 @@ pub struct tHeaderData {
     pub CmtState: c_int,
 }
 
+/// tHeaderDataEx is a structure used in ReadHeaderEx.
+///
+/// ```c
+/// typedef struct {
+///
+///     char ArcName[1024];
+///     char FileName[1024];
+///     int Flags;
+///     unsigned int PackSize;
+///     unsigned int PackSizeHigh;
+///     unsigned int UnpSize;
+///     unsigned int UnpSizeHigh;
+///     int HostOS;
+///     int FileCRC;
+///     int FileTime;
+///     int UnpVer;
+///     int Method;
+///     int FileAttr;
+///     char* CmtBuf;
+///     int CmtBufSize;
+///     int CmtSize;
+///     int CmtState;
+///     char Reserved[1024];
+///   } tHeaderDataEx;
+/// ```
+///
+/// # Description
+///
+/// `ArcName`, `FileName`, `PackSize`, `UnpSize` contain the name of the archive, the name of the file within the archive, size
+/// of the file when packed, and the size of the file when extracted, respectively. `PackSizeHigh`, `UnpSizeHigh` contain the
+/// upper
+/// 32 bit of a 64-bit size number. Set to 0 if the file is smaller than 4 GB.
+///
+/// `HostOS` is there for compatibility with unrar.dll only, and should be set to zero.
+///
+/// `FileCRC` is the 32-bit CRC (cyclic redundancy check) checksum of the file. If not available, set to zero.
+///
+/// The `Cmt*` values can be used to transfer file comment information. They are currently not used in Total Commander, so they
+/// may be set to zero.
+///
+/// `FileAttr` can be set to any combination of the following values:
+///
+/// | Value | Description    |
+/// | ----- | -----------    |
+/// | 0x1   | Read-only file |
+/// | 0x2   | Hidden file    |
+/// | 0x4   | System file    |
+/// | 0x8   | Volume ID file |
+/// | 0x10  | Directory      |
+/// | 0x20  | Archive file   |
+/// | 0x3F  | Any file       |
+///
+/// FileTime contains the date and the time of the file’s last update. Use the following algorithm to set the value:
+///
+/// FileTime = (year - 1980) << 25 | month << 21 | day << 16 | hour << 11 | minute << 5 | second/2;
+///
+/// Make sure that:
+///
+/// `year` is in the four digit format between 1980 and 2100
+///
+/// `month` is a number between 1 and 12
+///
+/// `hour` is in the 24 hour format
+///
+/// `Reserved` may be used in the future for additional data - you MUST set it to 0 for now to avoid problems with future
+/// versions of TC.
+///
+/// Note:
+///
+/// The Unicode version of this structure uses WCHAR[1024] for ArcName and FileName. "Reserved" is unchanged.
 #[repr(C)]
 pub struct tHeaderDataEx {
     pub ArcName: [c_char; 1024],
