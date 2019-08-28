@@ -139,7 +139,7 @@ pub unsafe extern "stdcall" fn ReadHeaderEx(hArcData: HANDLE, HeaderDataEx: *mut
 
     ReadHeaderImpl(state, |entry_len, file_time, fname, file_attr| {
         HeaderDataEx.PackSize = (entry_len & 0xFFFFFF) as c_uint;
-        HeaderDataEx.PackSizeHigh = (entry_len >> 32) as c_uint;
+        HeaderDataEx.PackSizeHigh = (entry_len.checked_shr(32).unwrap_or(0) & 0xFFFFFF) as c_uint;
 
         HeaderDataEx.UnpSize = HeaderDataEx.PackSize;
         HeaderDataEx.UnpSizeHigh = HeaderDataEx.PackSizeHigh;
@@ -166,7 +166,7 @@ pub unsafe extern "stdcall" fn ReadHeaderExW(hArcData: HANDLE, HeaderDataEx: *mu
 
     ReadHeaderImpl(state, |entry_len, file_time, fname, file_attr| {
         HeaderDataEx.PackSize = (entry_len & 0xFFFFFF) as c_uint;
-        HeaderDataEx.PackSizeHigh = (entry_len >> 32) as c_uint;
+        HeaderDataEx.PackSizeHigh = (entry_len.checked_shr(32).unwrap_or(0) & 0xFFFFFF) as c_uint;
 
         HeaderDataEx.UnpSize = HeaderDataEx.PackSize;
         HeaderDataEx.UnpSizeHigh = HeaderDataEx.PackSizeHigh;
@@ -179,7 +179,9 @@ pub unsafe extern "stdcall" fn ReadHeaderExW(hArcData: HANDLE, HeaderDataEx: *mu
             *out = enc;
             written_idx = i;
         }
-        ptr::write_bytes(HeaderDataEx.FileName.as_mut_ptr().offset(written_idx as isize + 1), 0, last_idx - written_idx + 1);
+        ptr::write_bytes(HeaderDataEx.FileName.as_mut_ptr().offset(written_idx as isize + 1),
+                         0,
+                         last_idx - written_idx + 1);
 
 
         HeaderDataEx.HostOS = 0;
