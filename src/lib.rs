@@ -11,7 +11,7 @@ pub mod util;
 pub mod wcxhead;
 
 use wcxhead::{tOpenArchiveDataW, tOpenArchiveData, tProcessDataProcW, tProcessDataProc, tChangeVolProcW, tChangeVolProc, tHeaderDataExW, tHeaderDataEx,
-              tHeaderData, BACKGROUND_UNPACK, BACKGROUND_PACK, E_END_ARCHIVE};
+              tHeaderData, BACKGROUND_UNPACK, BACKGROUND_PACK, E_NOT_SUPPORTED, E_END_ARCHIVE, PK_EXTRACT, PK_SKIP, PK_TEST};
 use libc::{c_char, c_uint, c_int, strncpy, wcslen, INT_MAX};
 use std::os::windows::ffi::{OsStringExt, OsStrExt};
 use self::util::system_time_to_totalcmd_time;
@@ -211,16 +211,75 @@ fn ReadHeaderImpl<F: FnOnce(usize, c_int, &str, c_int)>(state: &'static mut Arch
 }
 
 
-/// ProcessFile should unpack the specified file
-/// or test the integrity of the archive
+/// ProcessFile should unpack the specified file or test the integrity of the archive.
+///
+/// ```c
+/// int __stdcall ProcessFile (HANDLE hArcData, int Operation, char *DestPath, char *DestName);
+/// ```
+///
+/// # Description
+///
+/// ProcessFile should return zero on success, or one of the error values otherwise.
+///
+/// `hArcData` contains the handle previously returned by you in OpenArchive. Using this, you should be able to find out
+/// information (such as the archive filename) that you need for extracting files from the archive.
+///
+/// Unlike PackFiles, ProcessFile is passed only one filename. Either `DestName` contains the full path and file name and
+/// `DestPath` is NULL, or `DestName` contains only the file name and `DestPath` the file path. This is done for compatibility
+/// with unrar.dll.
+///
+/// When Total Commander first opens an archive, it scans all file names with OpenMode==PK_OM_LIST, so ReadHeader() is called
+/// in a loop with calling ProcessFile(...,PK_SKIP,...). When the user has selected some files and started to decompress them,
+/// Total Commander again calls ReadHeader() in a loop. For each file which is to be extracted, Total Commander calls
+/// ProcessFile() with Operation==PK_EXTRACT immediately after the ReadHeader() call for this file. If the file needs to be
+/// skipped, it calls it with Operation==PK_SKIP.
+///
+/// Each time `DestName` is set to contain the filename to be extracted, tested, or skipped. To find out what operation out of
+/// these last three you should apply to the current file within the archive, `Operation` is set to one of the following:
+///
+/// Constant   | Value | Description
+/// --------   | ----- | -----------
+/// PK_SKIP    | 0     | Skip this file
+/// PK_TEST    | 1     | Test file integrity
+/// PK_EXTRACT | 2     | Extract to disk
 #[no_mangle]
-pub extern "stdcall" fn ProcessFile(hArcData: HANDLE, Operation: c_int, DestPath: *mut c_char, DestName: *mut c_char) -> c_int {
-    0
+pub unsafe extern "stdcall" fn ProcessFile(hArcData: HANDLE, Operation: c_int, DestPath: *mut c_char, DestName: *mut c_char) -> c_int {
+    let state = &*(hArcData as *mut ArchiveState);
+
+    ProcessFileImpl(state,
+                    Operation,
+                    &CStr::from_ptr(DestPath).to_string_lossy()[..],
+                    &CStr::from_ptr(DestName).to_string_lossy()[..])
 }
+
 #[no_mangle]
-pub extern "stdcall" fn ProcessFileW(hArcData: HANDLE, Operation: c_int, DestPath: *mut WCHAR, DestName: *mut WCHAR) -> c_int {
-    0
+pub unsafe extern "stdcall" fn ProcessFileW(hArcData: HANDLE, Operation: c_int, DestPath: *mut WCHAR, DestName: *mut WCHAR) -> c_int {
+    let state = &*(hArcData as *mut ArchiveState);
+
+    ProcessFileImpl(state,
+                    Operation,
+                    OsString::from_wide(slice::from_raw_parts(DestPath, wcslen(DestPath))),
+                    OsString::from_wide(slice::from_raw_parts(DestName, wcslen(DestName))))
 }
+
+fn ProcessFileImpl<Pd: AsRef<Path>, Pn: AsRef<Path>>(state: &ArchiveState, Operation: c_int, dest_path: Pd, dest_name: Pn) -> c_int {
+    ProcessFileImpl_impl(state, Operation, dest_path.as_ref(), dest_name.as_ref())
+}
+
+fn ProcessFileImpl_impl(state: &ArchiveState, Operation: c_int, dest_path: &Path, dest_name: &Path) -> c_int {
+    match Operation {
+        PK_SKIP => 0,
+        PK_TEST => 0,
+        PK_EXTRACT => {
+            match state.extract_current_entry(dest_path, dest_name) {
+                Ok(()) => 0,
+                Err(err) => err,
+            }
+        }
+        _ => E_NOT_SUPPORTED,
+    }
+}
+
 
 /// CloseArchive should perform all necessary operations when an archive is about to be closed.
 #[no_mangle]

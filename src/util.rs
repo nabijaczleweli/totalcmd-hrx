@@ -4,7 +4,9 @@ use libc::{tm, time_t, c_int};
 
 /// `FileTime` contains the date and the time of the file’s last update. Use the following algorithm to set the value:
 ///
+/// ```
 /// FileTime = (year - 1980) << 25 | month << 21 | day << 16 | hour << 11 | minute << 5 | second/2;
+/// ```
 ///
 /// Make sure that:
 ///

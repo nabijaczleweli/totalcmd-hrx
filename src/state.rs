@@ -1,10 +1,10 @@
+use hrx::{HrxEntryData, HrxArchive, HrxEntry, HrxPath};
 use linked_hash_map::Iter as LinkedHashMapIter;
-use hrx::{HrxArchive, HrxEntry, HrxPath};
+use std::io::{Write, Read};
 use std::time::SystemTime;
 use self::super::wcxhead;
 use std::path::Path;
 use std::fs::File;
-use std::io::Read;
 use libc::c_int;
 
 
@@ -12,7 +12,8 @@ pub struct ArchiveState {
     pub arch: HrxArchive,
     pub mod_time: SystemTime,
 
-    arch_iter: Option<Box<LinkedHashMapIter<'static, HrxPath, HrxEntry>>>,
+    arch_iter: Option<LinkedHashMapIter<'static, HrxPath, HrxEntry>>,
+    cur_entry: Option<(&'static HrxPath, &'static HrxEntry)>,
 }
 
 impl ArchiveState {
@@ -36,14 +37,31 @@ impl ArchiveState {
             arch: string.parse().map_err(|_| wcxhead::E_UNKNOWN_FORMAT)?, // TODO: right value?
             mod_time: file_time,
             arch_iter: None,
+            cur_entry: None,
         })
     }
 
     pub fn next_entry(&'static mut self) -> Option<(&HrxPath, &HrxEntry)> {
         if self.arch_iter.is_none() {
-            self.arch_iter = Some(Box::new(self.arch.entries.iter()));
+            self.arch_iter = Some(self.arch.entries.iter());
         }
 
-        self.arch_iter.as_mut().unwrap().next()
+        self.cur_entry = self.arch_iter.as_mut().unwrap().next();
+        self.cur_entry
+    }
+
+    pub fn extract_current_entry<Pd: AsRef<Path>, Pn: AsRef<Path>>(&self, dest_path: Pd, dest_name: Pn) -> Result<(), c_int> {
+        self.extract_current_entry_impl(dest_path.as_ref(), dest_name.as_ref())
+    }
+
+    fn extract_current_entry_impl(&self, dest_path: &Path, dest_name: &Path) -> Result<(), c_int> {
+        let data = match &self.cur_entry.ok_or(wcxhead::E_END_ARCHIVE)?.1.data {
+            HrxEntryData::File { body } => body.as_ref().map(|s| &s[..]).unwrap_or(""),
+            HrxEntryData::Directory => "",
+        };
+
+        let mut out_f = File::create(dest_path.join(dest_name)).map_err(|_| wcxhead::E_ECREATE)?;
+
+        out_f.write_all(data.as_bytes()).map_err(|_| wcxhead::E_EWRITE)
     }
 }
