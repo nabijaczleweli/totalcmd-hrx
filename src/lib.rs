@@ -128,7 +128,8 @@ pub unsafe extern "stdcall" fn ReadHeader(hArcData: HANDLE, HeaderData: *mut tHe
 /// ReaderHeaderEx from being called again. If an error occurs, ReadHeaderEx should return one of the
 /// [error values](wcxhead/#error-codes) or 0 for no error.
 ///
-/// `hArcData` contains the handle returned by [`OpenArchive`](fn.OpenArchive.html). The programmer is encouraged to store other information in the
+/// `hArcData` contains the handle returned by [`OpenArchive`](fn.OpenArchive.html). The programmer is encouraged to store
+/// other information in the
 /// location that can be accessed via this handle. For example, you may want to store the position in the archive when
 /// returning files information in ReadHeaderEx.
 ///
@@ -224,10 +225,12 @@ fn ReadHeaderImpl<F: FnOnce(usize, c_int, &str, c_int)>(state: &'static mut Arch
 ///
 /// ProcessFile should return zero on success, or one of the [error values](wcxhead/#error-codes) otherwise.
 ///
-/// `hArcData` contains the handle previously returned by you in [`OpenArchive`](fn.OpenArchive.html). Using this, you should be able to find out
+/// `hArcData` contains the handle previously returned by you in [`OpenArchive`](fn.OpenArchive.html). Using this, you should
+/// be able to find out
 /// information (such as the archive filename) that you need for extracting files from the archive.
 ///
-/// Unlike [`PackFiles`](fn.PackFiles.html), ProcessFile is passed only one filename. Either `DestName` contains the full path and file name and
+/// Unlike [`PackFiles`](fn.PackFiles.html), ProcessFile is passed only one filename. Either `DestName` contains the full path
+/// and file name and
 /// `DestPath` is NULL, or `DestName` contains only the file name and `DestPath` the file path. This is done for compatibility
 /// with unrar.dll.
 ///
@@ -292,10 +295,12 @@ fn ProcessFileImpl_impl(state: &ArchiveState, Operation: c_int, dest_path: &Path
 ///
 /// # Description
 ///
-/// CloseArchive should return zero on success, or one of the [error values](wcxhead/#error-codes) otherwise. It should free all the resources
+/// CloseArchive should return zero on success, or one of the [error values](wcxhead/#error-codes) otherwise. It should free
+/// all the resources
 /// associated with the open archive.
 ///
-/// The parameter `hArcData` refers to the value returned by a programmer within a previous call to [`OpenArchive`](fn.OpenArchive.html).
+/// The parameter `hArcData` refers to the value returned by a programmer within a previous call to
+/// [`OpenArchive`](fn.OpenArchive.html).
 #[no_mangle]
 pub unsafe extern "stdcall" fn CloseArchive(hArcData: HANDLE) -> c_int {
     Box::from_raw(hArcData as *mut ArchiveState);
@@ -304,18 +309,48 @@ pub unsafe extern "stdcall" fn CloseArchive(hArcData: HANDLE) -> c_int {
 }
 
 
-/// HRX archives are single-volume, safe to ignore
+/// This function allows you to notify user about changing a volume when packing files.
+///
+/// ```c
+/// void __stdcall SetChangeVolProc (HANDLE hArcData, tChangeVolProc pChangeVolProc1);
+/// ```
+///
+/// # Description
+///
+/// `pChangeVolProc1` contains a pointer to a function that you may want to call when notifying user to change volume (e.g.
+/// insterting another diskette). You need to store the value at some place if you want to use it; you can use `hArcData` that
+/// you have returned by [`OpenArchive`](fn.OpenArchive.html) to identify that place.
 #[no_mangle]
 pub extern "stdcall" fn SetChangeVolProc(_: HANDLE, _: tChangeVolProc) {}
+
 #[no_mangle]
 pub extern "stdcall" fn SetChangeVolProcW(_: HANDLE, _: tChangeVolProcW) {}
 
-/// This function allows you to notify user about
-/// the progress when you un/pack files
+
+/// This function allows you to notify user about the progress when you un/pack files.
+///
+/// ```c
+/// void __stdcall SetProcessDataProc (HANDLE hArcData, tProcessDataProc pProcessDataProc);
+/// ```
+///
+/// # Description
+///
+/// `pProcessDataProc` contains a pointer to a function that you may want to call when notifying user about the progress being
+/// made when you pack or extract files from an archive. You need to store the value at some place if you want to use it; you
+/// can use `hArcData` that you have returned by [`OpenArchive`](fn.OpenArchive.html) to identify that place.
 #[no_mangle]
-pub extern "stdcall" fn SetProcessDataProc(hArcData: HANDLE, pProcessDataProc: tProcessDataProc) {}
+pub unsafe extern "stdcall" fn SetProcessDataProc(hArcData: HANDLE, pProcessDataProc: tProcessDataProc) {
+    let state = &mut *(hArcData as *mut ArchiveState);
+
+    state.process_data_callback = Some(pProcessDataProc);
+}
+
 #[no_mangle]
-pub extern "stdcall" fn SetProcessDataProcW(hArcData: HANDLE, pProcessDataProc: tProcessDataProcW) {}
+pub unsafe extern "stdcall" fn SetProcessDataProcW(hArcData: HANDLE, pProcessDataProc: tProcessDataProcW) {
+    let state = &mut *(hArcData as *mut ArchiveState);
+
+    state.process_data_callback_w = Some(pProcessDataProc);
+}
 
 
 /// PackFiles specifies what should happen when a user creates,

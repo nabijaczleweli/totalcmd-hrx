@@ -12,6 +12,9 @@ pub struct ArchiveState {
     pub arch: HrxArchive,
     pub mod_time: SystemTime,
 
+    pub process_data_callback: Option<wcxhead::tProcessDataProc>,
+    pub process_data_callback_w: Option<wcxhead::tProcessDataProcW>,
+
     arch_iter: Option<LinkedHashMapIter<'static, HrxPath, HrxEntry>>,
     cur_entry: Option<(&'static HrxPath, &'static HrxEntry)>,
 }
@@ -36,6 +39,8 @@ impl ArchiveState {
         Ok(ArchiveState {
             arch: string.parse().map_err(|_| wcxhead::E_UNKNOWN_FORMAT)?, // TODO: right value?
             mod_time: file_time,
+            process_data_callback: None,
+            process_data_callback_w: None,
             arch_iter: None,
             cur_entry: None,
         })
