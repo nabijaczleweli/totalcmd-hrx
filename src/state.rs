@@ -8,6 +8,10 @@ use std::fs::File;
 use libc::c_int;
 
 
+pub static mut GLOBAL_PROCESS_DATA_CALLBACK: Option<wcxhead::tProcessDataProc> = None;
+pub static mut GLOBAL_PROCESS_DATA_CALLBACK_W: Option<wcxhead::tProcessDataProcW> = None;
+
+
 pub struct ArchiveState {
     pub arch: HrxArchive,
     pub mod_time: SystemTime,
@@ -34,10 +38,10 @@ impl ArchiveState {
         let mut bytes = Vec::with_capacity(file_len);
         file.read_to_end(&mut bytes).map_err(|_| wcxhead::E_EREAD)?;
 
-        let string = String::from_utf8(bytes).map_err(|_| wcxhead::E_BAD_ARCHIVE)?;
+        let string = String::from_utf8(bytes).map_err(|_| wcxhead::E_UNKNOWN_FORMAT)?;
 
         Ok(ArchiveState {
-            arch: string.parse().map_err(|_| wcxhead::E_UNKNOWN_FORMAT)?, // TODO: right value?
+            arch: string.parse().map_err(|_| wcxhead::E_BAD_ARCHIVE)?,
             mod_time: file_time,
             process_data_callback: None,
             process_data_callback_w: None,

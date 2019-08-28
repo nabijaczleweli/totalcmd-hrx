@@ -1,10 +1,12 @@
 #![allow(nonstandard_style)]
 
 extern crate linked_hash_map;
+extern crate num_traits;
 extern crate winapi;
 extern crate libc;
 extern crate hrx;
 
+mod pack;
 mod state;
 
 pub mod util;
@@ -13,8 +15,8 @@ pub mod wcxhead;
 use wcxhead::{tOpenArchiveDataW, tOpenArchiveData, tProcessDataProcW, tProcessDataProc, tChangeVolProcW, tChangeVolProc, tHeaderDataExW, tHeaderDataEx,
               tHeaderData, BACKGROUND_UNPACK, BACKGROUND_PACK, E_NOT_SUPPORTED, E_END_ARCHIVE, PK_EXTRACT, PK_SKIP, PK_TEST};
 use libc::{c_char, c_uint, c_int, strncpy, wcslen, INT_MAX};
+use self::util::{CListIter, system_time_to_totalcmd_time};
 use std::os::windows::ffi::{OsStringExt, OsStrExt};
-use self::util::system_time_to_totalcmd_time;
 use winapi::shared::minwindef::{FALSE, BOOL};
 use winapi::shared::ntdef::{HANDLE, WCHAR};
 use std::ffi::{OsString, OsStr, CStr};
@@ -23,7 +25,8 @@ use hrx::HrxEntryData;
 use std::{slice, ptr};
 use std::path::Path;
 
-pub use self::state::ArchiveState;
+pub use self::pack::pack_archive;
+pub use self::state::{ArchiveState, GLOBAL_PROCESS_DATA_CALLBACK_W, GLOBAL_PROCESS_DATA_CALLBACK};
 
 
 /// OpenArchive should perform all necessary operations when an archive is to be opened.
@@ -340,29 +343,95 @@ pub extern "stdcall" fn SetChangeVolProcW(_: HANDLE, _: tChangeVolProcW) {}
 /// can use `hArcData` that you have returned by [`OpenArchive`](fn.OpenArchive.html) to identify that place.
 #[no_mangle]
 pub unsafe extern "stdcall" fn SetProcessDataProc(hArcData: HANDLE, pProcessDataProc: tProcessDataProc) {
-    let state = &mut *(hArcData as *mut ArchiveState);
+    if hArcData.is_null() || (hArcData as usize).overflowing_add(1).1 {
+        GLOBAL_PROCESS_DATA_CALLBACK = Some(pProcessDataProc);
+    } else {
+        let state = &mut *(hArcData as *mut ArchiveState);
 
-    state.process_data_callback = Some(pProcessDataProc);
+        state.process_data_callback = Some(pProcessDataProc);
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "stdcall" fn SetProcessDataProcW(hArcData: HANDLE, pProcessDataProc: tProcessDataProcW) {
-    let state = &mut *(hArcData as *mut ArchiveState);
+    if hArcData.is_null() || (hArcData as usize).overflowing_add(1).1 {
+        GLOBAL_PROCESS_DATA_CALLBACK_W = Some(pProcessDataProc);
+    } else {
+        let state = &mut *(hArcData as *mut ArchiveState);
 
-    state.process_data_callback_w = Some(pProcessDataProc);
+        state.process_data_callback_w = Some(pProcessDataProc);
+    }
 }
 
 
-/// PackFiles specifies what should happen when a user creates,
-/// or adds files to the archive.
+/// PackFiles specifies what should happen when a user creates, or adds files to the archive.
+///
+/// ```c
+/// int __stdcall PackFiles (char *PackedFile, char *SubPath, char *SrcPath, char *AddList, int Flags);
+/// ```
+///
+/// # Description
+///
+/// PackFiles should return zero on success, or one of the [error values](wcxhead/#error-codes) otherwise.
+///
+/// `PackedFile` refers to the archive that is to be created or modified. The string contains the full path.
+///
+/// `SubPath` is either NULL, when the files should be packed with the paths given with the file names, or not NULL when they
+/// should be placed below the given subdirectory within the archive. Example:
+///
+/// ```plaintext
+/// SubPath="subdirectory"
+/// Name in AddList="subdir2\filename.ext"
+/// -> File should be packed as "subdirectory\subdir2\filename.ext"
+/// ```
+///
+/// `SrcPath` contains path to the files in `AddList`. `SrcPath` and `AddList` together specify files that are to be packed into
+/// `PackedFile`. Each string in `AddList` is zero-delimited (ends in zero), and the `AddList` string ends with an extra zero
+/// byte, i.e. there are two zero bytes at the end of `AddList`.
+///
+/// `Flags` can contain a combination of the following values reflecting the user choice from within Totalcmd:
+///
+/// | Constant           | Value | Description                                                 |
+/// | --------           | ----- | -----------                                                 |
+/// | PK_PACK_MOVE_FILES | 1     | Delete original after packing                               |
+/// | PK_PACK_SAVE_PATHS | 2     | Save path names of files                                    |
+/// | PK_PACK_ENCRYPT    | 4     | Ask user for password, then encrypt file with that password |
 #[no_mangle]
-pub extern "stdcall" fn PackFiles(PackedFile: *mut c_char, SubPath: *mut c_char, SrcPath: *mut c_char, AddList: *mut c_char, Flags: c_int) -> c_int {
-    0
+pub unsafe extern "stdcall" fn PackFiles(PackedFile: *mut c_char, SubPath: *mut c_char, SrcPath: *mut c_char, AddList: *mut c_char, Flags: c_int) -> c_int {
+    match pack_archive(CStr::from_ptr(PackedFile).to_string_lossy().into_owned(),
+                       if SubPath.is_null() {
+                           None
+                       } else {
+                           Some(CStr::from_ptr(SubPath).to_string_lossy())
+                       },
+                       &CStr::from_ptr(SrcPath).to_string_lossy()[..],
+                       CListIter(AddList)
+                           .map(|s| CStr::from_bytes_with_nul_unchecked(slice::from_raw_parts(s.as_ptr() as *const u8, s.len() + 1)))
+                           .map(|s| s.to_string_lossy()),
+                       Flags) {
+        Ok(()) => 0,
+        Err(err) => err,
+    }
 }
+
 #[no_mangle]
-pub extern "stdcall" fn PackFilesW(PackedFile: *mut WCHAR, SubPath: *mut WCHAR, SrcPath: *mut WCHAR, AddList: *mut WCHAR, Flags: c_int) -> c_int {
-    0
+pub unsafe extern "stdcall" fn PackFilesW(PackedFile: *mut WCHAR, SubPath: *mut WCHAR, SrcPath: *mut WCHAR, AddList: *mut WCHAR, Flags: c_int) -> c_int {
+    match pack_archive(OsString::from_wide(slice::from_raw_parts(PackedFile, wcslen(PackedFile))),
+                       if SubPath.is_null() {
+                           None
+                       } else {
+                           Some(OsString::from_wide(slice::from_raw_parts(SubPath, wcslen(SubPath)))
+                               .into_string()
+                               .unwrap_or_else(|s| s.to_string_lossy().into()))
+                       },
+                       OsString::from_wide(slice::from_raw_parts(SrcPath, wcslen(SrcPath))),
+                       CListIter(AddList).map(OsString::from_wide).map(|s| s.into_string().unwrap_or_else(|s| s.to_string_lossy().into())),
+                       Flags) {
+        Ok(()) => 0,
+        Err(err) => err,
+    }
 }
+
 
 #[no_mangle]
 pub extern "stdcall" fn DeleteFiles(PackedFile: *mut c_char, DeleteList: *mut c_char) -> c_int {
