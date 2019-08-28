@@ -34,8 +34,10 @@ pub use self::state::ArchiveState;
 ///
 /// # Description
 ///
-/// OpenArchive should return a unique handle representing the archive. The handle should remain valid until CloseArchive is
-/// called. If an error occurs, you should return zero, and specify the error by setting OpenResult member of ArchiveData.
+/// OpenArchive should return a unique handle representing the archive. The handle should remain valid until
+/// [CloseArchive](fn.CloseArchive.html) is called.
+/// If an [error](wcxhead/#error-codes) occurs, you should return zero, and specify the [error](wcxhead/#error-codes) by
+/// setting OpenResult member of ArchiveData.
 ///
 /// You can use the ArchiveData to query information about the archive being open, and store the information in ArchiveData to
 /// some location that can be accessed via the handle.
@@ -80,11 +82,12 @@ fn OpenArchiveImpl_impl(path: &Path, OpenResult: &mut c_int) -> HANDLE {
 /// ReadHeader is called as long as it returns zero (as long as the previous call to this function returned zero). Each time it
 /// is called, `HeaderData` is supposed to provide Totalcmd with information about the next file contained in the archive. When
 /// all files in the archive have been returned, ReadHeader should return E_END_ARCHIVE which will prevent ReaderHeader from
-/// being called again. If an error occurs, ReadHeader should return one of the error values or 0 for no error.
+/// being called again. If an error occurs, ReadHeader should return one of the [error values](wcxhead/#error-codes)
+/// or 0 for no error.
 ///
-/// `hArcData` contains the handle returned by `OpenArchive`. The programmer is encouraged to store other information in the
-/// location that can be accessed via this handle. For example, you may want to store the position in the archive when
-/// returning files information in ReadHeader.
+/// `hArcData` contains the handle returned by [`OpenArchive`](fn.OpenArchive.html). The programmer is encouraged to store
+/// other information in the location that can be accessed via this handle. For example, you may want to store the position in
+/// the archive when returning files information in ReadHeader.
 ///
 /// In short, you are supposed to set at least PackSize, UnpSize, FileTime, and FileName members of tHeaderData. Totalcmd will
 /// use this information to display content of the archive when the archive is viewed as a directory.
@@ -122,10 +125,10 @@ pub unsafe extern "stdcall" fn ReadHeader(hArcData: HANDLE, HeaderData: *mut tHe
 /// ReadHeaderEx is called as long as it returns zero (as long as the previous call to this function returned zero). Each time
 /// it is called, `HeaderDataEx` is supposed to provide Totalcmd with information about the next file contained in the archive.
 /// When all files in the archive have been returned, ReadHeaderEx should return E_END_ARCHIVE which will prevent
-/// ReaderHeaderEx from being called again. If an error occurs, ReadHeaderEx should return one of the error values or 0 for no
-/// error.
+/// ReaderHeaderEx from being called again. If an error occurs, ReadHeaderEx should return one of the
+/// [error values](wcxhead/#error-codes) or 0 for no error.
 ///
-/// `hArcData` contains the handle returned by OpenArchive. The programmer is encouraged to store other information in the
+/// `hArcData` contains the handle returned by [`OpenArchive`](fn.OpenArchive.html). The programmer is encouraged to store other information in the
 /// location that can be accessed via this handle. For example, you may want to store the position in the archive when
 /// returning files information in ReadHeaderEx.
 ///
@@ -219,12 +222,12 @@ fn ReadHeaderImpl<F: FnOnce(usize, c_int, &str, c_int)>(state: &'static mut Arch
 ///
 /// # Description
 ///
-/// ProcessFile should return zero on success, or one of the error values otherwise.
+/// ProcessFile should return zero on success, or one of the [error values](wcxhead/#error-codes) otherwise.
 ///
-/// `hArcData` contains the handle previously returned by you in OpenArchive. Using this, you should be able to find out
+/// `hArcData` contains the handle previously returned by you in [`OpenArchive`](fn.OpenArchive.html). Using this, you should be able to find out
 /// information (such as the archive filename) that you need for extracting files from the archive.
 ///
-/// Unlike PackFiles, ProcessFile is passed only one filename. Either `DestName` contains the full path and file name and
+/// Unlike [`PackFiles`](fn.PackFiles.html), ProcessFile is passed only one filename. Either `DestName` contains the full path and file name and
 /// `DestPath` is NULL, or `DestName` contains only the file name and `DestPath` the file path. This is done for compatibility
 /// with unrar.dll.
 ///
@@ -282,12 +285,24 @@ fn ProcessFileImpl_impl(state: &ArchiveState, Operation: c_int, dest_path: &Path
 
 
 /// CloseArchive should perform all necessary operations when an archive is about to be closed.
+///
+/// ```c
+/// int __stdcall CloseArchive (HANDLE hArcData);
+/// ```
+///
+/// # Description
+///
+/// CloseArchive should return zero on success, or one of the [error values](wcxhead/#error-codes) otherwise. It should free all the resources
+/// associated with the open archive.
+///
+/// The parameter `hArcData` refers to the value returned by a programmer within a previous call to [`OpenArchive`](fn.OpenArchive.html).
 #[no_mangle]
 pub unsafe extern "stdcall" fn CloseArchive(hArcData: HANDLE) -> c_int {
     Box::from_raw(hArcData as *mut ArchiveState);
 
     0
 }
+
 
 /// HRX archives are single-volume, safe to ignore
 #[no_mangle]

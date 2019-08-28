@@ -3,6 +3,157 @@
 
 //! Contents of file wcxhead.h
 //! It contains definitions of error codes, flags and callbacks
+//!
+//! # Error Codes
+//!
+//! Use the following values when you want to inform Totalcmd that an error ocurred.
+//!
+//! | Constant         | Value | Description                                          |
+//! | --------         | ----- | -----------                                          |
+//! |                  | 0     | Success                                              |
+//! | E_END_ARCHIVE    | 10    | No more files in archive                             |
+//! | E_NO_MEMORY      | 11    | Not enough memory                                    |
+//! | E_BAD_DATA       | 12    | CRC error in the data of the currently unpacked file |
+//! | E_BAD_ARCHIVE    | 13    | The archive as a whole is bad, e.g. damaged headers  |
+//! | E_UNKNOWN_FORMAT | 14    | Archive format unknown                               |
+//! | E_EOPEN          | 15    | Cannot open existing file                            |
+//! | E_ECREATE        | 16    | Cannot create file                                   |
+//! | E_ECLOSE         | 17    | Error closing file                                   |
+//! | E_EREAD          | 18    | Error reading from file                              |
+//! | E_EWRITE         | 19    | Error writing to file                                |
+//! | E_SMALL_BUF      | 20    | Buffer too small                                     |
+//! | E_EABORTED       | 21    | Function aborted by user                             |
+//! | E_NO_FILES       | 22    | No files found                                       |
+//! | E_TOO_MANY_FILES | 23    | Too many files to pack                               |
+//! | E_NOT_SUPPORTED  | 24    | Function not supported                               |
+//!
+//! # Unicode Support
+//!
+//! With Total Commander 7.5 (packer plugin interface 2.20), Unicode support has been added to all plugin types. In principle,
+//! you need to implement the same functions as for ANSI, with two differences: The function name is changed from FunctionName
+//! to FunctionNameW, and Ansi strings are changed to wide char names.
+//!
+//! Total Commander will call the Unicode functions on all NT-based systems (Windows NT, 2000, XP) if they are present. If not,
+//! or on Windows 9x/ME, Total Commander will call the Ansi functions.
+//!
+//! The following functions of the packer plugin interface support Unicode:
+//!
+//! OpenArchiveW<br />
+//! ReadHeaderExW<br />
+//! ProcessFileW<br />
+//! SetChangeVolProcW<br />
+//! SetProcessDataProcW<br />
+//! PackFilesW<br />
+//! DeleteFilesW<br />
+//! StartMemPackW<br />
+//! CanYouHandleThisFileW<br />
+//!
+//! The following functions do not exist in a Unicode form and must be implemented as Ansi:
+//!
+//! ReadHeader - use ReadHeaderEx<br />
+//! CloseArchive<br />
+//! GetPackerCaps<br />
+//! ConfigurePacker<br />
+//! PackToMem<br />
+//! DoneMemPack<br />
+//! PackSetDefaultParams<br />
+//! ReadHeaderEx
+//!
+//! What's the easiest way to support Unicode in an existing plugin?
+//!
+//! 1. Get my sample plugin fsplugin (file system plugins section) even if you write a different type of plugin!
+//! 2. Add the files cunicode.h and cunicode.cpp to your project. They contain various functions to make Unicode support easier.
+//! 3. Convert your existing functions to Unicode and rename them to FunctionNameW.
+//!    For all file functions like CreateFile, do not call their Unicode counterpart CreateFileW directly.
+//!    Instead, call the functions from cunicode.cpp like CreateFileT.
+//!    These functions automatically call the right Unicode or Ansi function,
+//!    and even support file name lengths >259 characters!
+//!
+//! 4. For each converted function like FunctionNameW, recreate a function FunctionName which you call this way:
+//!
+//! ```c
+//! int __stdcall FunctionName(char* SomeString1,char* SomeString2)
+//! {
+//!
+//! WCHAR SomeString1W[wdirtypemax],SomeString2W[wdirtypemax];
+//!     return FunctionNameW(awfilenamecopy(SomeString1W,SomeString1),awfilenamecopy(SomeString2W,SomeString2));
+//! }
+//! ```
+//!
+//! The Macro awfilenamecopy will convert the Ansi string SomeString1 to Unicode and store it inSomeString1W. This variable
+//! must not be a pointer, because awfilenamecopy uses "countof" to get the target length.
+//!
+//! # 64-bit support
+//!
+//! With Total Commander 8, Total Commander is now also available in 64-bit. Since plugins are simple dlls, and 64-bit programs
+//! can only load 64-bit dlls, a plugin needs to be re-compiled with a 64-bit compiler to work with 64-bit Total Commander.
+//!
+//! **IMPORTANT**: A 64-bit plugin must have the same name as the 32-bit plugin and be in the same directory, but '64' must be
+//! appended to the extension. Example: filesystem.wcx -> filesystem.wcx64. 64-bit-only plugins must also end with '64'.
+//!
+//! Since all 64-bit Windows versions support Unicode, it's sufficient to write a 64-bit Unicode-only plugin. However, if your
+//! existing 32-bit plugin only supports ANSI functions, you can port it without modifications to 64 bit. Total Commander
+//! 64-bit also supports the ANSI functions if it cannot find the Unicode functions. 64-bit Unicode plugins do not have an
+//! extension starting with 'u', they have the normal 'wcx64' extension.
+//!
+//! ### Some porting notes:
+//!
+//! All integer parameters in plugin functions remain 32-bit (e.g. in C: int, long, DWORD; Delphi: integer, dword), only
+//! pointers and handles are 64-bit wide now. Recompiling a program or dll with a 64-bit compiler usually takes care of this
+//! automatically without needing many changes. Problems can arise when converting pointers to integer or vice versa. Make sure
+//! to use 64-bit integer variables (e.g. size_t in C, ptrint or ptruint in Lazarus) for such operations.
+//!
+//! ### What's the easiest way to convert an existing plugin to 64-bit?
+//!
+//! #### 1. If the plugin was written in C or C++:
+//!
+//! If you have Visual Studio Professional 2005 or later, a 64-bit compiler is already included. If you use the free Express
+//! version or Visual Studio 2003, you need to install the Windows Software Development Kit (SDK) in addition to Visual Studio
+//! Express.
+//!
+//! Here is how to add 64-bit support to an existing plugin:
+//! 1. Check the toolbars in Visual Studio: There are comboboxes for the compile type (Debug or Release), and one which shows
+//! "Win32".
+//!
+//! 2. Open the one showing "Win32", and click on the "Configuration manager".
+//! 3. Click on "New" in the Active Solution Platform list (right side). A new dialog box "New Solution Platform" will be shown.
+//! 4. In the upper field, choose "x64"
+//! 5. In the lower field, "copy from", choose "Win32"
+//! 6. Make sure the checkbox "Create new project platform" is on
+//! 7. Click OK<br />
+//! See also: http://msdn.microsoft.com/en-us/library/9yb4317s.aspx
+//! 8. Now you can switch in the same project between Win32 and x64. Switch to x64.
+//! 9. Open the settings of your project.
+//! 10. You should set the following options:<br />
+//!     C++ - Code generation - runtime library: Multi-threaded-Debug (/Mtd) <- not multithreaded debug dll !<br />
+//!     Linker - General - output file: wcx/pluginname.wcx64
+//!
+//! ##### Download links:
+//! 1. Visual Studio Express C++ edition:<br />
+//! http://www.microsoft.com/visualstudio/en-us/products/2010-editions/visual-cpp-express
+//! 2. Windows Software Development Kit (SDK):<br />
+//! http://msdn.microsoft.com/en-us/windows/bb980924.aspx
+//!
+//! #### 2. If the plugin was written in Delphi or Free Pascal:
+//!
+//! There is a 64-bit Lazarus/Free Pascal available, which can be used to create 64-bit dlls. Total Commander itself was
+//! compiled with Lazarus as a 64-bit application. There are menu items in the "Tools" menu to convert Delphi projects and
+//! forms to Lazarus.
+//!
+//! Lazarus/Free Pascal works a bit differently from Delphi, so some functions may need to be changed. Here are the problems
+//! encountered when porting Total Commander:
+//!
+//! 1. Free pascal is different -> Use {$MODE Delphi} in all *.pas files to handle functions the Delphi way
+//! 2. strnew creates a NIL pointer when the passed pchar is 0 bytes long. -> Use your own strnew function.
+//! 3. Windows messages below WM_USER are not passed to the windows procedure. -> Use SetWindowLongPtr to subclass the window
+//! 4. The calculation  p-buffer  is not working when p is a pwidechar, buffer an array of widechar -> use p-pwidechar(@bufffer)
+//! 5. INVALID_HANDLE_VALUE is incorrectly set to 0 instead of -1 in lcltype.pp! -> Put "windows" at end of "uses" command.
+//!
+//! ##### Download links:
+//! You should download and install the 64-bit daily snapshot from<br />
+//! http://www.lazarus.freepascal.org/<br />
+//! Click on "Daily snapshots", then on e.g. Lazarus + fpc 2.4.4     **win64**<br />
+//! The final releases are very outdated, so the snapshots usually work much better.
 
 
 use winapi::shared::minwindef::{MAX_PATH, DWORD};
@@ -10,7 +161,6 @@ use libc::{c_char, c_uint, c_int};
 use winapi::shared::ntdef::WCHAR;
 
 
-/* Error codes returned to calling application */
 /// No more files in archive
 pub const E_END_ARCHIVE: c_int = 10;
 /// Not enough memory
@@ -312,6 +462,42 @@ pub struct tHeaderDataExW {
     pub Reserved: [c_char; 1024],
 }
 
+/// tOpenArchiveData is used in `OpenArchive`.
+///
+/// ```c
+/// typedef struct {
+///
+///     char* ArcName;
+///     int OpenMode;
+///     int OpenResult;
+///     char* CmtBuf;
+///     int CmtBufSize;
+///     int CmtSize;
+///     int CmtState;
+///   } tOpenArchiveData;
+/// ```
+///
+/// # Description
+///
+/// `ArcName` contains the name of the archive to open.
+///
+/// `OpenMode` is set to one of the following values:
+///
+/// | Constant      | Value | Description                                |
+/// | --------      | ----- | -----------                                |
+/// | PK_OM_LIST    | 0     | Open file for reading of file names only   |
+/// | PK_OM_EXTRACT | 1     | Open file for processing (extract or test) |
+///
+///
+/// `OpenResult` used to return one of the [error values](./#error-codes) if an error occurs.
+///
+/// The `Cmt*` variables are for the file comment. They are currently not used by Total Commander, so may be set to NULL.
+///
+/// Notes:
+///
+/// If the file is opened with OpenMode==PK_OM_LIST, `ProcessFile` will never be called by Total Commander.
+///
+/// The [Unicode](./#unicode-support) version of this function uses WCHAR* instead of char* for the text fields.
 #[repr(C)]
 pub struct tOpenArchiveData {
     pub ArcName: *mut c_char,
@@ -334,6 +520,42 @@ pub struct tOpenArchiveDataW {
     pub CmtState: c_int,
 }
 
+/// PackDefaultParamStruct is passed to `PackSetDefaultParams` to inform the plugin about the current plugin interface version
+/// and ini file location.
+///
+/// # Declaration:
+///
+/// ```c
+/// typedef struct {
+///
+/// int size;
+///     DWORD PluginInterfaceVersionLow;
+///     DWORD PluginInterfaceVersionHi;
+///     char DefaultIniName[MAX_PATH];
+/// } PackDefaultParamStruct;
+/// ```
+///
+/// # Description of struct members:
+///
+/// <table>
+/// <tr><td>size</td>
+///     <td>The size of the structure, in bytes. Later revisions of the plugin interface may add more structure members, and
+///         will adjust this size field accordingly.</td></tr>
+///
+/// <tr><td>PluginInterfaceVersionLow</td>
+///     <td>Low value of plugin interface version. This is the value after the comma, multiplied by 100!
+///         Example. For plugin interface version 2.1, the low DWORD is 10 and the high DWORD is 2..</td></tr>
+///
+/// <tr><td>PluginInterfaceVersionHi</td>
+///     <td>High value of plugin interface version.</td></tr>
+///
+/// <tr><td>DefaultIniName</td>
+///     <td>Suggested location+name of the ini file where the plugin could store its data. This is a fully
+/// qualified path+file name, and will be in the same directory as the wincmd.ini. It's recommended to store the plugin
+/// data in
+/// this file or at least in this directory, because the plugin directory or the Windows directory may not be
+/// writable!.</td></tr>
+/// </table>
 #[repr(C)]
 pub struct PackDefaultParamStruct {
     pub size: c_int,
@@ -344,12 +566,118 @@ pub struct PackDefaultParamStruct {
 
 /* Definition of callback functions called by the DLL */
 
-/// Ask to swap disk for multi-volume archive
+/// tChangeValueProc is a typedef of the function that asks the user to change volume.
+///
+/// ```c
+/// typedef int (__stdcall *tChangeVolProc)(char *ArcName, int Mode);
+/// ```
+///
+/// # Description
+///
+/// `SetChangeVolProc` has provided you with a pointer to a function with this declaration. When you want the user to be asked
+/// about changing volume, call this function with appropriate parameters. The function itself is part of Totalcmd - you only
+/// specify the question. Totalcmd then asks the user, and you get the answer as the result of the call to this function. If
+/// the user has aborted the operation, the function returns zero.
+///
+/// `ArcName` specifies the filename of the archive that you are processing, and will receive the name of the next volume.
+///
+/// Set `Mode` to one of the following values, according to what you want Totalcmd to ask the user:
+///
+/// | Constant      | Value | Description                                  |
+/// | --------      | ----- | -----------                                  |
+/// | PK_VOL_ASK    | 0     | Ask user for location of next volume         |
+/// | PK_VOL_NOTIFY | 1     | Notify app that next volume will be unpacked |
+///
+/// Note
+///
+/// The keyword or constant __stdcall must be set according to the compiler that you will use to make the library. For example,
+/// this is STDCALL for cygwin and __stdcall for MSC.
 pub type tChangeVolProc = extern "stdcall" fn(ArcName: *mut char, Mode: c_int) -> c_int;
 pub type tChangeVolProcW = extern "stdcall" fn(ArcName: *mut WCHAR, Mode: c_int) -> c_int;
 
-/* Notify that data is processed - used for progress dialog */
+/// tProcessDataProc is a typedef of the function that notifies the user about the progress when un/packing files.
+///
+/// ```c
+/// typedef int (__stdcall *tProcessDataProc)(char *FileName, int Size);
+/// ```
+///
+/// # Description
+///
+/// `SetProcessDataProc` has provided you with a pointer to a function with this declaration. When you want to notify the user
+/// about the progress when un/packing files, call this function with appropriate parameters. The function itself is part of
+/// Totalcmd - you only specify what Totalcmd should display. In addition, Totalcmd displays the Cancel button that allows the
+/// user to abort the un/packing process. If the user has clicked on Cancel, the function returns zero.
+///
+/// `FileName` can be used to pass a pointer to the currently processed filename (0 terminated string), or NULL if it is not
+/// available.
+///
+/// Set `Size` to the number of bytes processed since the previous call to the function. For plugins which unpack in
+/// CloseArchive: Set size to negative percent value (-1..-100) to directly set first percent bar, -1000..-1100 for second
+/// percent bar (-1000=0%).
+///
+/// # Note
+///
+/// The keyword or constant __stdcall must be set according to the compiler that you will use to make the library. For example,
+/// this is STDCALL for cygwin and __stdcall for MSC.
 pub type tProcessDataProc = extern "stdcall" fn(FileName: *mut char, Size: c_int) -> c_int;
 pub type tProcessDataProcW = extern "stdcall" fn(FileName: *mut WCHAR, Size: c_int) -> c_int;
+
+/// PkCryptProc is a callback function, which the plugin can call to store passwords in the secure password store, read them
+/// back, or copy them to a new connection.
+///
+/// # Declaration:
+///
+/// ```c
+/// int __stdcall PkCryptProc(int CryptoNumber,int mode,
+///          char* ArchiveName,char* Password,int maxlen);
+/// ```
+///
+/// # Description of parameters:
+///
+/// <table>
+/// <tr><td>CryptoNumber</td>
+///     <td>Here the plugin needs to pass the crypto number received through the `PkSetCryptCallback()` function.</td></tr>
+///
+/// <tr><td>mode</td>
+///     <td>The mode of operation:<br />
+///     PK_CRYPT_SAVE_PASSWORD: Save password to password store<br />
+///     PK_CRYPT_LOAD_PASSWORD: Load password from password store<br />
+///     PK_CRYPT_LOAD_PASSWORD_NO_UI: Load password only if master password has already been entered<br />
+///     PK_CRYPT_COPY_PASSWORD: Copy password to new connection. Here the second string parameter "Password" is not a password,
+///     but the name of the target archive name<br />
+///     PK_CRYPT_MOVE_PASSWORD: As above, but delete the source password<br />
+///     PK_CRYPT_DELETE_PASSWORD: Delete the password of the given archive name</td></tr>
+///
+/// <tr><td>ArchiveName</td>
+///     <td>Name of the archive for this operation. The plugin can give any name here which can be stored in Windows ini
+///         files. The plugin should encode names which cannot be stored in ini files, or give a reference code or so instead
+///         of the file name.</td></tr>
+///
+/// <tr><td>Password</td>
+///     <td>Operation-specific, usually the password to be stored/retrieved, or the target name when copying/moving a
+///         connection</td></tr>
+///
+/// <tr><td>maxlen</td>
+///     <td>Maximum length, in characters, the password buffer can store when calling one of the load functions</td></tr>
+/// </table>
+///
+/// # Return value:
+///
+/// Total Commander returns one of these values:
+///
+/// <table>
+/// <tr><td>FS_FILE_OK</td><td>Success</td></tr>
+/// <tr><td>E_ECREATE</td> <td>Encrypt/Decrypt failed</td></tr>
+/// <tr><td>E_EWRITE</td>  <td>Could not write password to password store</td></tr>
+/// <tr><td>E_EREAD</td>   <td>Password not found in password store</td></tr>
+/// <tr><td>E_NO_FILES</td><td>No master password entered yet</td></tr>
+/// </table>
+///
+/// # Note:
+///
+/// When showing the details of an existing archive, you should call PK_CRYPT_LOAD_PASSWORD_NO_UI first. In case of error
+/// E_NO_FILES, show a button "Edit password". Only call PK_CRYPT_LOAD_PASSWORD when the user clicks that button, or tries to
+/// decrypt the archive. This way the user doesn't have to enter the master password if he just wanted to make some other
+/// changes to the archive settings.
 pub type tPkCryptProc = extern "stdcall" fn(CryptoNr: c_int, Mode: c_int, ArchiveName: *mut char, Password: *mut char, maxlen: c_int) -> c_int;
 pub type tPkCryptProcW = extern "stdcall" fn(CryptoNr: c_int, Mode: c_int, ArchiveName: *mut WCHAR, Password: *mut WCHAR, maxlen: c_int) -> c_int;
