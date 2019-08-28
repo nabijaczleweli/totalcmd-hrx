@@ -13,7 +13,8 @@ pub mod util;
 pub mod wcxhead;
 
 use wcxhead::{tOpenArchiveDataW, tOpenArchiveData, tProcessDataProcW, tProcessDataProc, tChangeVolProcW, tChangeVolProc, tHeaderDataExW, tHeaderDataEx,
-              tHeaderData, BACKGROUND_UNPACK, BACKGROUND_PACK, E_NOT_SUPPORTED, E_END_ARCHIVE, PK_EXTRACT, PK_SKIP, PK_TEST};
+              tHeaderData, PK_CAPS_BY_CONTENT, PK_CAPS_SEARCHTEXT, PK_CAPS_MULTIPLE, PK_CAPS_DELETE, PK_CAPS_MODIFY, PK_CAPS_NEW, BACKGROUND_UNPACK,
+              BACKGROUND_PACK, E_NOT_SUPPORTED, E_END_ARCHIVE, PK_EXTRACT, PK_SKIP, PK_TEST};
 use libc::{c_char, c_uint, c_int, strncpy, wcslen, INT_MAX};
 use self::util::{CListIter, system_time_to_totalcmd_time};
 use std::os::windows::ffi::{OsStringExt, OsStrExt};
@@ -468,11 +469,50 @@ pub extern "stdcall" fn DeleteFilesW(PackedFile: *mut WCHAR, DeleteList: *mut WC
 }
 
 
-/// GetPackerCaps tells WinCmd what features your packer plugin supports
+/// GetPackerCaps tells Totalcmd what features your packer plugin supports.
+///
+/// ```c
+/// int __stdcall GetPackerCaps();
+/// ```
+///
+/// # Description
+///
+/// Implement GetPackerCaps to return a combination of the following values:
+///
+/// | Constant           | Value | Description                                                      |
+/// | --------           | ----- | -----------                                                      |
+/// | PK_CAPS_NEW        | 1     | Can create new archives                                          |
+/// | PK_CAPS_MODIFY     | 2     | Can modify existing archives                                     |
+/// | PK_CAPS_MULTIPLE   | 4     | Archive can contain multiple files                               |
+/// | PK_CAPS_DELETE     | 8     | Can delete files                                                 |
+/// | PK_CAPS_OPTIONS    | 16    | Has options dialog                                               |
+/// | PK_CAPS_MEMPACK    | 32    | Supports packing in memory                                       |
+/// | PK_CAPS_BY_CONTENT | 64    | Detect archive type by content                                   |
+/// | PK_CAPS_SEARCHTEXT | 128   | Allow searching for text in archives created with this plugin    |
+/// | PK_CAPS_HIDE       | 256   | Don't show packer icon, don't open with Enter but with Ctrl+PgDn |
+/// | PK_CAPS_ENCRYPT    | 512   | Plugin supports encryption.                                      |
+///
+/// Omitting PK_CAPS_NEW and PK_CAPS_MODIFY means [PackFiles](fn.PackFiles.html) will never be called and so you don’t have to
+/// implement [PackFiles](fn.PackFiles.html). Omitting PK_CAPS_MULTIPLE means [PackFiles](fn.PackFiles.html) will be supplied
+/// with just one file. Leaving out PK_CAPS_DELETE means [DeleteFiles](fn.DeleteFiles.html) will never be called; leaving out
+/// PK_CAPS_OPTIONS means [ConfigurePacker](fn.ConfigurePacker.html) will not be called. PK_CAPS_MEMPACK enables the functions
+/// [StartMemPack](fn.StartMemPack.html), [PackToMem](fn.PackToMem.html) and [DoneMemPack](fn.DoneMemPack.html). If
+/// PK_CAPS_BY_CONTENT is returned, Totalcmd calls the function [CanYouHandleThisFile](fn.CanYouHandleThisFile.html) when the
+/// user presses Ctrl+PageDown on an unknown archive type. Finally, if PK_CAPS_SEARCHTEXT is returned, Total Commander will
+/// search for text inside files packed with this plugin. This may not be a good idea for certain plugins like the diskdir
+/// plugin, where file contents may not be available. If PK_CAPS_HIDE is set, the plugin will not show the file type as a
+/// packer. This is useful for plugins which are mainly used for creating files, e.g. to create batch files, avi files etc. The
+/// file needs to be opened with Ctrl+PgDn in this case, because Enter will launch the associated application.
+///
+/// Important note:
+///
+/// If you change the return values of this function, e.g. add packing support, you need to reinstall the packer plugin in
+/// Total Commander, otherwise it will not detect the new capabilities.
 #[no_mangle]
 pub extern "stdcall" fn GetPackerCaps() -> c_int {
-    0
+    PK_CAPS_NEW | PK_CAPS_MODIFY | PK_CAPS_MULTIPLE | PK_CAPS_DELETE | PK_CAPS_BY_CONTENT | PK_CAPS_SEARCHTEXT
 }
+
 
 #[no_mangle]
 pub extern "stdcall" fn CanYouHandleThisFile(FileName: *mut c_char) -> BOOL {
