@@ -25,7 +25,7 @@ use hrx::HrxEntryData;
 use std::{slice, ptr};
 use std::path::Path;
 
-pub use self::pack::pack_archive;
+pub use self::pack::{modify_archive, pack_archive};
 pub use self::state::{ArchiveState, GLOBAL_PROCESS_DATA_CALLBACK_W, GLOBAL_PROCESS_DATA_CALLBACK};
 
 
@@ -433,14 +433,40 @@ pub unsafe extern "stdcall" fn PackFilesW(PackedFile: *mut WCHAR, SubPath: *mut 
 }
 
 
+/// DeleteFiles should delete the specified files from the archive
+///
+/// ```c
+/// int __stdcall DeleteFiles (char *PackedFile, char *DeleteList);
+/// ```
+///
+/// # Description
+///
+/// DeleteFiles should return zero on success, or one of the [error values](wcxhead/#error-codes) otherwise.
+///
+/// `PackedFile` contains full path and name of the the archive.
+///
+/// `DeleteList` contains the list of files that should be deleted from the archive. The format of this string is the same as
+/// `AddList` within [PackFiles](fn.PackFiles.html).
 #[no_mangle]
 pub extern "stdcall" fn DeleteFiles(PackedFile: *mut c_char, DeleteList: *mut c_char) -> c_int {
-    0
+    match modify_archive(CStr::from_ptr(PackedFile).to_string_lossy().into_owned(),
+                         CListIter(DeleteList)
+                             .map(|s| CStr::from_bytes_with_nul_unchecked(slice::from_raw_parts(s.as_ptr() as *const u8, s.len() + 1)))
+                             .map(|s| s.to_string_lossy())) {
+        Ok(()) => 0,
+        Err(err) => err,
+    }
 }
+
 #[no_mangle]
 pub extern "stdcall" fn DeleteFilesW(PackedFile: *mut WCHAR, DeleteList: *mut WCHAR) -> c_int {
-    0
+    match modify_archive(OsString::from_wide(slice::from_raw_parts(PackedFile, wcslen(PackedFile))),
+                         CListIter(DeleteList).map(OsString::from_wide).map(|s| s.into_string().unwrap_or_else(|s| s.to_string_lossy().into()))) {
+        Ok(()) => 0,
+        Err(err) => err,
+    }
 }
+
 
 /// GetPackerCaps tells WinCmd what features your packer plugin supports
 #[no_mangle]

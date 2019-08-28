@@ -46,7 +46,7 @@ fn pack_archive_load_archive(packed_file: &Path) -> Result<HrxArchive, c_int> {
     if !packed_file.exists() {
         Ok(HrxArchive::new(NonZeroUsize::new(3).unwrap()))
     } else {
-        read_file_string(packed_file)?.parse().map_err(|_| wcxhead::E_BAD_ARCHIVE)
+        load_archive(packed_file)
     }
 }
 
@@ -104,11 +104,45 @@ fn pack_archive_write_archive(mut archive: HrxArchive, packed_file: PathBuf) -> 
         }
     }
 
-    let mut out_f = File::create(packed_file).map_err(|_| wcxhead::E_ECREATE)?;
-    // Boundary was verified above, so the only error can now be I/O
-    archive.serialise(&mut out_f).map_err(|_| wcxhead::E_EWRITE)?;
+    write_archive(archive, packed_file)
+}
 
-    Ok(())
+
+pub fn modify_archive<Pf, Dl, DlE>(packed_file: Pf, delete_list: Dl) -> Result<(), c_int>
+    where Pf: Into<PathBuf>,
+          Dl: Iterator<Item = DlE>,
+          DlE: AsRef<str>
+{
+    let packed_file = packed_file.into();
+    let mut archive = load_archive(&packed_file)?;
+
+    for delete_list_elem in delete_list {
+        if modify_archive_delete_element_from_archive(&mut archive, delete_list_elem.as_ref())? {
+            return Err(wcxhead::E_EABORTED);
+        }
+    }
+
+    write_archive(archive, packed_file)
+}
+
+fn modify_archive_delete_element_from_archive(archive: &mut HrxArchive, delete_list_elem: &str) -> Result<bool, c_int> {
+    let delete_list_elem = if delete_list_elem.contains('\\') {
+        Cow::from(delete_list_elem.replace('\\', "/"))
+    } else {
+        Cow::from(delete_list_elem)
+    };
+
+    match archive.entries.remove(&delete_list_elem[..]) {
+        Some(entry) => {
+            let entry_data_len = match entry.data {
+                HrxEntryData::File { body } => body.map(|s| s.len()).unwrap_or(0),
+                HrxEntryData::Directory => 0,
+            };
+
+            Ok(data_processed(entry_data_len))
+        }
+        None => Err(wcxhead::E_NO_FILES),
+    }
 }
 
 
@@ -119,6 +153,19 @@ fn read_file_string(path: &Path) -> Result<String, c_int> {
     file.read_to_end(&mut bytes).map_err(|_| wcxhead::E_EREAD)?;
 
     String::from_utf8(bytes).map_err(|_| wcxhead::E_UNKNOWN_FORMAT)
+}
+
+fn load_archive(path: &Path) -> Result<HrxArchive, c_int> {
+    read_file_string(path)?.parse().map_err(|_| wcxhead::E_BAD_ARCHIVE)
+}
+
+fn write_archive(archive: HrxArchive, packed_file: PathBuf) -> Result<(), c_int> {
+    let mut out_f = File::create(packed_file).map_err(|_| wcxhead::E_ECREATE)?;
+
+    // Assume boundary was verified, so the only error can be I/O
+    archive.serialise(&mut out_f).map_err(|_| wcxhead::E_EWRITE)?;
+
+    Ok(())
 }
 
 fn data_processed(len: usize) -> bool {
