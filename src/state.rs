@@ -3,6 +3,7 @@ use linked_hash_map::Iter as LinkedHashMapIter;
 use std::io::{Write, Read};
 use std::time::SystemTime;
 use self::super::wcxhead;
+use std::borrow::Cow;
 use std::path::Path;
 use std::fs::File;
 use libc::c_int;
@@ -59,17 +60,22 @@ impl ArchiveState {
         self.cur_entry
     }
 
-    pub fn extract_current_entry<Pd: AsRef<Path>, Pn: AsRef<Path>>(&self, dest_path: Pd, dest_name: Pn) -> Result<(), c_int> {
-        self.extract_current_entry_impl(dest_path.as_ref(), dest_name.as_ref())
+    pub fn extract_current_entry<Pd: AsRef<Path>, Pn: AsRef<Path>>(&self, dest_path: Option<Pd>, dest_name: Option<Pn>) -> Result<(), c_int> {
+        self.extract_current_entry_impl(dest_path.as_ref().map(AsRef::as_ref), dest_name.as_ref().map(AsRef::as_ref))
     }
 
-    fn extract_current_entry_impl(&self, dest_path: &Path, dest_name: &Path) -> Result<(), c_int> {
+    fn extract_current_entry_impl(&self, dest_path: Option<&Path>, dest_name: Option<&Path>) -> Result<(), c_int> {
         let data = match &self.cur_entry.ok_or(wcxhead::E_END_ARCHIVE)?.1.data {
             HrxEntryData::File { body } => body.as_ref().map(|s| &s[..]).unwrap_or(""),
             HrxEntryData::Directory => "",
         };
 
-        let mut out_f = File::create(dest_path.join(dest_name)).map_err(|_| wcxhead::E_ECREATE)?;
+        let dest_name = dest_name.ok_or(wcxhead::E_NOT_SUPPORTED)?;
+        let mut out_f = File::create(if let Some(dest_path) = dest_path {
+                Cow::from(dest_path.join(dest_name))
+            } else {
+                Cow::from(dest_name)
+            }).map_err(|_| wcxhead::E_ECREATE)?;
 
         out_f.write_all(data.as_bytes()).map_err(|_| wcxhead::E_EWRITE)
     }

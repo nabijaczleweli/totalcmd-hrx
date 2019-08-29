@@ -24,6 +24,7 @@ use winapi::shared::minwindef::BOOL;
 use std::convert::TryInto;
 use hrx::HrxEntryData;
 use std::{slice, ptr};
+use std::borrow::Cow;
 use std::path::Path;
 
 pub use self::pack::{is_valid_archive, modify_archive, pack_archive};
@@ -210,7 +211,14 @@ fn ReadHeaderImpl<F: FnOnce(usize, c_int, &str, c_int)>(state: &'static mut Arch
                 HrxEntryData::Directory => (0x10, ""),
             };
 
-            callback(entry_body.len(), system_time_to_totalcmd_time(&mod_time), fname.as_ref(), attr);
+            callback(entry_body.len(),
+                     system_time_to_totalcmd_time(&mod_time),
+                     &if fname.as_ref().contains('/') {
+                         Cow::from(fname.as_ref().replace('/', "\\"))
+                     } else {
+                         Cow::from(fname.as_ref())
+                     }[..],
+                     attr);
 
             0
         }
@@ -234,9 +242,8 @@ fn ReadHeaderImpl<F: FnOnce(usize, c_int, &str, c_int)>(state: &'static mut Arch
 /// information (such as the archive filename) that you need for extracting files from the archive.
 ///
 /// Unlike [`PackFiles`](fn.PackFiles.html), ProcessFile is passed only one filename. Either `DestName` contains the full path
-/// and file name and
-/// `DestPath` is NULL, or `DestName` contains only the file name and `DestPath` the file path. This is done for compatibility
-/// with unrar.dll.
+/// and file name and `DestPath` is NULL, or `DestName` contains only the file name and `DestPath` the file path. This is done
+/// for compatibility with unrar.dll.
 ///
 /// When Total Commander first opens an archive, it scans all file names with OpenMode==PK_OM_LIST, so ReadHeader() is called
 /// in a loop with calling ProcessFile(...,PK_SKIP,...). When the user has selected some files and started to decompress them,
@@ -256,10 +263,24 @@ fn ReadHeaderImpl<F: FnOnce(usize, c_int, &str, c_int)>(state: &'static mut Arch
 pub unsafe extern "stdcall" fn ProcessFile(hArcData: HANDLE, Operation: c_int, DestPath: *mut c_char, DestName: *mut c_char) -> c_int {
     let state = &*(hArcData as *mut ArchiveState);
 
+    // That is a lie, both DestPath and DestName are NULL when Operation==PK_SKIP
+
+    let DestPath = if !DestPath.is_null() {
+        Some(CStr::from_ptr(DestPath).to_string_lossy())
+    } else {
+        None
+    };
+
+    let DestName = if !DestName.is_null() {
+        Some(CStr::from_ptr(DestName).to_string_lossy())
+    } else {
+        None
+    };
+
     ProcessFileImpl(state,
                     Operation,
-                    &CStr::from_ptr(DestPath).to_string_lossy()[..],
-                    &CStr::from_ptr(DestName).to_string_lossy()[..])
+                    DestPath.as_ref().map(|s| Path::new(&s[..])),
+                    DestName.as_ref().map(|s| Path::new(&s[..])))
 }
 
 #[no_mangle]
@@ -268,15 +289,23 @@ pub unsafe extern "stdcall" fn ProcessFileW(hArcData: HANDLE, Operation: c_int, 
 
     ProcessFileImpl(state,
                     Operation,
-                    OsString::from_wide(slice::from_raw_parts(DestPath, wcslen(DestPath))),
-                    OsString::from_wide(slice::from_raw_parts(DestName, wcslen(DestName))))
+                    if !DestPath.is_null() {
+                        Some(OsString::from_wide(slice::from_raw_parts(DestPath, wcslen(DestPath))))
+                    } else {
+                        None
+                    },
+                    if !DestName.is_null() {
+                        Some(OsString::from_wide(slice::from_raw_parts(DestName, wcslen(DestName))))
+                    } else {
+                        None
+                    })
 }
 
-fn ProcessFileImpl<Pd: AsRef<Path>, Pn: AsRef<Path>>(state: &ArchiveState, Operation: c_int, dest_path: Pd, dest_name: Pn) -> c_int {
-    ProcessFileImpl_impl(state, Operation, dest_path.as_ref(), dest_name.as_ref())
+fn ProcessFileImpl<Pd: AsRef<Path>, Pn: AsRef<Path>>(state: &ArchiveState, Operation: c_int, dest_path: Option<Pd>, dest_name: Option<Pn>) -> c_int {
+    ProcessFileImpl_impl(state, Operation, dest_path.as_ref().map(AsRef::as_ref), dest_name.as_ref().map(AsRef::as_ref))
 }
 
-fn ProcessFileImpl_impl(state: &ArchiveState, Operation: c_int, dest_path: &Path, dest_name: &Path) -> c_int {
+fn ProcessFileImpl_impl(state: &ArchiveState, Operation: c_int, dest_path: Option<&Path>, dest_name: Option<&Path>) -> c_int {
     match Operation {
         PK_SKIP => 0,
         PK_TEST => 0,
