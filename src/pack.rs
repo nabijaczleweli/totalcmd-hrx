@@ -55,28 +55,40 @@ fn pack_archive_add_element_to_archive(archive: &mut HrxArchive, sub_path: Optio
                                        -> Result<bool, c_int> {
     let fs_path = source_path.join(add_list_elem);
 
-    let file_data = read_file_string(&fs_path)?;
-    let file_data_len = file_data.len();
-    let file_data = HrxEntryData::File { body: Some(file_data) };
-
     let add_list_elem = if add_list_elem.contains('\\') {
         Cow::from(add_list_elem.replace('\\', "/"))
     } else {
         Cow::from(add_list_elem)
     };
-    let add_list_elem = if save_paths {
+
+    let (file_data_len, file_data, is_dir) = if add_list_elem.ends_with('/') {
+        (0, HrxEntryData::Directory, true)
+    } else {
+        let file_data = read_file_string(&fs_path)?;
+        (file_data.len(), HrxEntryData::File { body: Some(file_data) }, false)
+    };
+
+    if is_dir && !save_paths {
+        return Ok(false);
+    }
+
+    let add_list_elem = if !save_paths {
         match add_list_elem.rfind('/') {
             Some(last_slash) => &add_list_elem[last_slash + 1..],
             None => &add_list_elem[..],
         }
     } else {
-        &add_list_elem[..]
+        if is_dir {
+            &add_list_elem[..add_list_elem.len() - 1]
+        } else {
+            &add_list_elem[..]
+        }
     };
 
     let file_path = match sub_path {
             Some(sub_path) => format!("{}/{}", sub_path, add_list_elem).parse(),
             None => add_list_elem.parse(),
-        }.map_err(|_| wcxhead::E_UNKNOWN_FORMAT)?;
+        }.map_err(|_| wcxhead::E_NOT_SUPPORTED)?;
 
     match archive.entries.entry(file_path) {
         LinkedHashMapEntry::Occupied(oe) => oe.into_mut().data = file_data,
@@ -88,7 +100,7 @@ fn pack_archive_add_element_to_archive(archive: &mut HrxArchive, sub_path: Optio
         }
     }
 
-    if delete_originals {
+    if delete_originals && !is_dir {
         fs::remove_file(fs_path).map_err(|_| wcxhead::E_EOPEN)?;
     }
 

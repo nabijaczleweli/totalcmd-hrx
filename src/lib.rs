@@ -217,7 +217,8 @@ fn ReadHeaderImpl<F: FnOnce(usize, c_int, &str, c_int)>(state: &'static mut Arch
                          Cow::from(fname.as_ref().replace('/', "\\"))
                      } else {
                          Cow::from(fname.as_ref())
-                     }[..],
+                     }
+                          [..],
                      attr);
 
             0
