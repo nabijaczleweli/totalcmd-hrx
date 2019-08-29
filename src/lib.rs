@@ -18,15 +18,15 @@ use wcxhead::{tOpenArchiveDataW, tOpenArchiveData, tProcessDataProcW, tProcessDa
 use libc::{c_char, c_uint, c_int, strncpy, wcslen, INT_MAX};
 use self::util::{CListIter, system_time_to_totalcmd_time};
 use std::os::windows::ffi::{OsStringExt, OsStrExt};
-use winapi::shared::minwindef::{FALSE, BOOL};
 use winapi::shared::ntdef::{HANDLE, WCHAR};
 use std::ffi::{OsString, OsStr, CStr};
+use winapi::shared::minwindef::BOOL;
 use std::convert::TryInto;
 use hrx::HrxEntryData;
 use std::{slice, ptr};
 use std::path::Path;
 
-pub use self::pack::{modify_archive, pack_archive};
+pub use self::pack::{is_valid_archive, modify_archive, pack_archive};
 pub use self::state::{ArchiveState, GLOBAL_PROCESS_DATA_CALLBACK_W, GLOBAL_PROCESS_DATA_CALLBACK};
 
 
@@ -449,7 +449,7 @@ pub unsafe extern "stdcall" fn PackFilesW(PackedFile: *mut WCHAR, SubPath: *mut 
 /// `DeleteList` contains the list of files that should be deleted from the archive. The format of this string is the same as
 /// `AddList` within [PackFiles](fn.PackFiles.html).
 #[no_mangle]
-pub extern "stdcall" fn DeleteFiles(PackedFile: *mut c_char, DeleteList: *mut c_char) -> c_int {
+pub unsafe extern "stdcall" fn DeleteFiles(PackedFile: *mut c_char, DeleteList: *mut c_char) -> c_int {
     match modify_archive(CStr::from_ptr(PackedFile).to_string_lossy().into_owned(),
                          CListIter(DeleteList)
                              .map(|s| CStr::from_bytes_with_nul_unchecked(slice::from_raw_parts(s.as_ptr() as *const u8, s.len() + 1)))
@@ -460,7 +460,7 @@ pub extern "stdcall" fn DeleteFiles(PackedFile: *mut c_char, DeleteList: *mut c_
 }
 
 #[no_mangle]
-pub extern "stdcall" fn DeleteFilesW(PackedFile: *mut WCHAR, DeleteList: *mut WCHAR) -> c_int {
+pub unsafe extern "stdcall" fn DeleteFilesW(PackedFile: *mut WCHAR, DeleteList: *mut WCHAR) -> c_int {
     match modify_archive(OsString::from_wide(slice::from_raw_parts(PackedFile, wcslen(PackedFile))),
                          CListIter(DeleteList).map(OsString::from_wide).map(|s| s.into_string().unwrap_or_else(|s| s.to_string_lossy().into()))) {
         Ok(()) => 0,
@@ -514,15 +514,72 @@ pub extern "stdcall" fn GetPackerCaps() -> c_int {
 }
 
 
+/// CanYouHandleThisFile allows the plugin to handle files with different extensions than the one defined in Total Commander.
+/// It is called when the plugin defines PK_CAPS_BY_CONTENT, and the user tries to open an archive with Ctrl+PageDown.
+///
+/// ```c
+/// BOOL __stdcall CanYouHandleThisFile (char *FileName);
+/// ```
+///
+/// # Description
+///
+/// CanYouHandleThisFile should return true (nonzero) if the plugin recognizes the file as an archive which it can handle. The
+/// detection must be by contents, NOT by extension. If this function is not implemented, Totalcmd assumes that only files with
+/// a given extension can be handled by the plugin.
+///
+/// `Filename` contains the fully qualified name (path+name) of the file to be checked.
 #[no_mangle]
-pub extern "stdcall" fn CanYouHandleThisFile(FileName: *mut c_char) -> BOOL {
-    FALSE
-}
-#[no_mangle]
-pub extern "stdcall" fn CanYouHandleThisFileW(FileName: *mut WCHAR) -> BOOL {
-    FALSE
+pub unsafe extern "stdcall" fn CanYouHandleThisFile(FileName: *mut c_char) -> BOOL {
+    is_valid_archive(&CStr::from_ptr(FileName).to_string_lossy()[..]) as BOOL
 }
 
+#[no_mangle]
+pub unsafe extern "stdcall" fn CanYouHandleThisFileW(FileName: *mut WCHAR) -> BOOL {
+    is_valid_archive(OsString::from_wide(slice::from_raw_parts(FileName, wcslen(FileName)))) as BOOL
+}
+
+
+/// GetBackgroundFlags is called to determine whether a plugin supports background packing or unpacking.
+///
+/// ```c
+/// int __stdcall GetBackgroundFlags(void);
+/// ```
+///
+/// # Description
+///
+/// GetBackgroundFlags should return one of the following values:
+///
+/// <table>
+///   <thead><tr><th>Constant</th><th>Value</th><th>Description</th></tr></thead>
+///   <tbody>
+///     <tr><td>BACKGROUND_UNPACK</td>
+///         <td>1</td>
+///         <td>Calls to OpenArchive, ReadHeader(Ex), ProcessFile and CloseArchive are thread-safe
+///             (unpack in background)</td></tr>
+///     <tr><td>BACKGROUND_PACK</td>
+///         <td>2</td>
+///         <td>Calls to PackFiles are thread-safe (pack in background)</td></tr>
+///     <tr><td>BACKGROUND_MEMPACK</td>
+///         <td>4</td>
+///         <td>Calls to StartMemPack, PackToMem and DoneMemPack are thread-safe</td></tr>
+///   </tbody>
+/// </table>
+///
+/// # Notes
+///
+/// To make your packer plugin thread-safe, you should remove any global variables which aren't the same for all pack or unpack
+/// operations. For example, the path to the ini file name can remain global, but something like the compression ratio, or file
+/// handles need to be stored separately.
+///
+/// **Packing**: The PackFiles function is just a single call, so you can store all variables on the stack (local variables of
+/// that
+/// function).
+///
+/// **Unpacking**: You can allocate a struct containing all the variables you need across function calls, like the compression
+/// method and ratio, and state variables, and return a pointer to this struct as a result to OpenArchive. This pointer will
+/// then passed to all other functions like ReadHeader as parameter hArcData.
+///
+/// **Pack in memory**: You can do the same in StartMemPack as described under Unpacking.
 #[no_mangle]
 pub extern "stdcall" fn GetBackgroundFlags() -> c_int {
     BACKGROUND_UNPACK | BACKGROUND_PACK

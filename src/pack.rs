@@ -146,6 +146,15 @@ fn modify_archive_delete_element_from_archive(archive: &mut HrxArchive, delete_l
 }
 
 
+pub fn is_valid_archive<Fn: AsRef<Path>>(file_name: Fn) -> bool {
+    is_valid_archive_impl(file_name.as_ref())
+}
+
+fn is_valid_archive_impl(file_name: &Path) -> bool {
+    load_archive(&file_name).is_ok()
+}
+
+
 fn read_file_string(path: &Path) -> Result<String, c_int> {
     let mut file = File::open(path).map_err(|_| wcxhead::E_EOPEN)?;
 
