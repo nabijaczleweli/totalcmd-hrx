@@ -2,6 +2,7 @@
 
 extern crate linked_hash_map;
 extern crate num_traits;
+extern crate wcxhead;
 extern crate winapi;
 extern crate libc;
 extern crate hrx;
@@ -10,7 +11,6 @@ mod pack;
 mod state;
 
 pub mod util;
-pub mod wcxhead;
 
 use wcxhead::{tOpenArchiveDataW, tOpenArchiveData, tProcessDataProcW, tProcessDataProc, tChangeVolProcW, tChangeVolProc, tHeaderDataExW, tHeaderDataEx,
               tHeaderData, PK_CAPS_BY_CONTENT, PK_CAPS_SEARCHTEXT, PK_CAPS_MULTIPLE, PK_CAPS_DELETE, PK_CAPS_MODIFY, PK_CAPS_NEW, BACKGROUND_UNPACK,

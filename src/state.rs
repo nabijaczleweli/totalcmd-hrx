@@ -2,7 +2,6 @@ use hrx::{HrxEntryData, HrxArchive, HrxEntry, HrxPath};
 use linked_hash_map::Iter as LinkedHashMapIter;
 use std::io::{Write, Read};
 use std::time::SystemTime;
-use self::super::wcxhead;
 use std::borrow::Cow;
 use std::path::Path;
 use std::fs::File;

@@ -1,11 +1,11 @@
 use linked_hash_map::Entry as LinkedHashMapEntry;
 use hrx::{HrxEntryData, HrxArchive, HrxEntry};
-use self::super::{wcxhead, state};
 use std::path::{PathBuf, Path};
 use std::num::NonZeroUsize;
 use libc::{c_int, INT_MAX};
 use std::convert::TryInto;
 use std::fs::{self, File};
+use self::super::state;
 use std::borrow::Cow;
 use std::io::Read;
 use std::ptr;

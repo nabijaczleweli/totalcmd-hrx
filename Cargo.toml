@@ -15,6 +15,7 @@ crate-type = ["dylib"]
 [dependencies]
 hrx = "0.1"
 libc = "0.2"
+wcxhead = "0.1"
 num-traits = "0.2"
 linked-hash-map = "0.5"
 
