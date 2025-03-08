@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::fs::File;
 use libc::c_int;
+use std::ptr;
 
 
 pub static mut GLOBAL_PROCESS_DATA_CALLBACK: Option<wcxhead::tProcessDataProc> = None;
@@ -43,8 +44,8 @@ impl ArchiveState {
         Ok(ArchiveState {
             arch: string.parse().map_err(|_| wcxhead::E_BAD_ARCHIVE)?,
             mod_time: file_time,
-            process_data_callback: None,
-            process_data_callback_w: None,
+            process_data_callback: unsafe { GLOBAL_PROCESS_DATA_CALLBACK },
+            process_data_callback_w: unsafe { GLOBAL_PROCESS_DATA_CALLBACK_W },
             arch_iter: None,
             cur_entry: None,
         })
@@ -76,6 +77,18 @@ impl ArchiveState {
                 Cow::from(dest_name)
             }).map_err(|_| wcxhead::E_ECREATE)?;
 
-        out_f.write_all(data.as_bytes()).map_err(|_| wcxhead::E_EWRITE)
+        out_f.write_all(data.as_bytes()).map_err(|_| wcxhead::E_EWRITE)?;
+
+        if if let Some(cbk) = self.process_data_callback {
+            cbk(ptr::null_mut(), data.len() as i32) == 0
+        } else if let Some(cbk) = self.process_data_callback_w {
+            cbk(ptr::null_mut(), data.len() as i32) == 0
+        } else {
+            false
+        } {
+            Err(wcxhead::E_EABORTED)
+        } else {
+            Ok(())
+        }
     }
 }
