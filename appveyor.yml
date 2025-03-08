@@ -1,7 +1,7 @@
 image:
   - Visual Studio 2022
 
-version: 0.1.1-{build}
+version: 0.1.2-{build}
 
 skip_tags: false
 
@@ -32,21 +32,21 @@ build_script:
   - git submodule update --init --recursive
   - cargo build --verbose --release
   -
-  - mkdir totalcmd-hrx-v0.1.1-%BITNESS%bit
-  - cp target\release\totalcmd_hrx.dll totalcmd-hrx-v0.1.1-%BITNESS%bit\totalcmd-hrx.%WCX%
-  - strip --strip-all --remove-section=.comment --remove-section=.note totalcmd-hrx-v0.1.1-%BITNESS%bit\totalcmd-hrx.%WCX%
-  - sed -e "s/#VERSION#/v0.1.1/g" -e "s/#BITNESS#/%BITNESS%/g" -e "s/#WCX#/%WCX%/g" pluginst.inf > totalcmd-hrx-v0.1.1-%BITNESS%bit\pluginst.inf
-  - cp LICENSE README.md totalcmd-hrx-v0.1.1-%BITNESS%bit
-  - zip -r9j totalcmd-hrx-v0.1.1-%BITNESS%bit.zip totalcmd-hrx-v0.1.1-%BITNESS%bit
+  - mkdir totalcmd-hrx-v0.1.2-%BITNESS%bit
+  - cp target\release\totalcmd_hrx.dll totalcmd-hrx-v0.1.2-%BITNESS%bit\totalcmd-hrx.%WCX%
+  - strip --strip-all --remove-section=.comment --remove-section=.note totalcmd-hrx-v0.1.2-%BITNESS%bit\totalcmd-hrx.%WCX%
+  - sed -e "s/#VERSION#/v0.1.2/g" -e "s/#BITNESS#/%BITNESS%/g" -e "s/#WCX#/%WCX%/g" pluginst.inf > totalcmd-hrx-v0.1.2-%BITNESS%bit\pluginst.inf
+  - cp LICENSE README.md totalcmd-hrx-v0.1.2-%BITNESS%bit
+  - zip -r9j totalcmd-hrx-v0.1.2-%BITNESS%bit.zip totalcmd-hrx-v0.1.2-%BITNESS%bit
 
 test: off
 
 artifacts:
-  - path: totalcmd-hrx-v0.1.1-%BITNESS%bit.zip
+  - path: totalcmd-hrx-v0.1.2-%BITNESS%bit.zip
 
 deploy:
   provider: GitHub
-  artifact: totalcmd-hrx-v0.1.1-%BITNESS%bit.zip
+  artifact: totalcmd-hrx-v0.1.2-%BITNESS%bit.zip
   auth_token:
     secure: F9auuxFPHvnELZYfPe7+uRR7ymEXMGin8lJeGdfLcZ+hXZrx2KyAXWxLC/dvrpZSNDy434qclCIAuWxW6HjiKA5KlgMrCpgX0bsOxLYKUdpBmXjuX5GkjcH/H6NnPBD4
   on:
