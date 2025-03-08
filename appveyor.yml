@@ -1,3 +1,6 @@
+image:
+  - Visual Studio 2022
+
 version: 0.1.1-{build}
 
 skip_tags: false
@@ -12,13 +15,14 @@ clone_folder: C:\totalcmd-hrx
 install:
   - set PATH=C:\msys64\mingw64\bin;C:\msys64\mingw32\bin;C:\msys64\usr\bin;%PATH%;C:\Users\appveyor\.cargo\bin
   -
-  - bash -lc "pacman --needed --noconfirm -Sy pacman-mirrors"
-  - bash -lc "pacman --noconfirm -Syyu"
-  - bash -lc "pacman --noconfirm -S mingw-w64-x86_64-toolchain zip"
-  -
   - if "%Platform:x=%"=="64" (set BITNESS=64) else (set BITNESS=32)
   - if "%BITNESS%"=="64" (set WCX=wcx64) else (set WCX=wcx)
   - if "%BITNESS%"=="64" (set ARCH=x86_64) else (set ARCH=i686)
+  -
+  - bash -lc "pacman --needed --noconfirm -Sy pacman-mirrors"
+  - bash -lc "pacman --noconfirm -Syyu"
+  - bash -lc "pacman --noconfirm -Syyu"
+  - bash -lc "pacman --noconfirm -S mingw-w64-$ARCH-toolchain zip"
   -
   - curl -SL https://win.rustup.rs/ -oC:\rustup-init.exe
   - C:\rustup-init.exe -y --default-host="%ARCH%-pc-windows-gnu"
@@ -44,7 +48,7 @@ deploy:
   provider: GitHub
   artifact: totalcmd-hrx-v0.1.1-%BITNESS%bit.zip
   auth_token:
-    secure: UTVV14dSPetX0GQZ06DSuU8VKkub3dTDEq7LEMDSfLt4BujZETA/gnNBPcYJoByt
+    secure: F9auuxFPHvnELZYfPe7+uRR7ymEXMGin8lJeGdfLcZ+hXZrx2KyAXWxLC/dvrpZSNDy434qclCIAuWxW6HjiKA5KlgMrCpgX0bsOxLYKUdpBmXjuX5GkjcH/H6NnPBD4
   on:
     appveyor_repo_tag: true
 
