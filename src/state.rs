@@ -50,7 +50,7 @@ impl ArchiveState {
         })
     }
 
-    pub fn next_entry(&'static mut self) -> Option<(&HrxPath, &HrxEntry)> {
+    pub fn next_entry(&'static mut self) -> Option<(&'static HrxPath, &'static HrxEntry)> {
         if self.arch_iter.is_none() {
             self.arch_iter = Some(self.arch.entries.iter());
         }

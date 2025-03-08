@@ -337,7 +337,7 @@ fn ProcessFileImpl_impl(state: &ArchiveState, Operation: c_int, dest_path: Optio
 /// [`OpenArchive`](fn.OpenArchive.html).
 #[no_mangle]
 pub unsafe extern "stdcall" fn CloseArchive(hArcData: HANDLE) -> c_int {
-    Box::from_raw(hArcData as *mut ArchiveState);
+    drop(Box::from_raw(hArcData as *mut ArchiveState));
 
     0
 }
@@ -602,8 +602,7 @@ pub unsafe extern "stdcall" fn CanYouHandleThisFileW(FileName: *mut WCHAR) -> BO
 /// handles need to be stored separately.
 ///
 /// **Packing**: The PackFiles function is just a single call, so you can store all variables on the stack (local variables of
-/// that
-/// function).
+/// that function).
 ///
 /// **Unpacking**: You can allocate a struct containing all the variables you need across function calls, like the compression
 /// method and ratio, and state variables, and return a pointer to this struct as a result to OpenArchive. This pointer will
